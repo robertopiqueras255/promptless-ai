@@ -7,7 +7,7 @@ Promptless AI is a general-web assistant that predicts what kind of help the use
 Current MVP:
 
 - Chrome MV3 extension.
-- Page context capture from the content script.
+- Page context capture from the content script, with form fields represented by labels/placeholders instead of typed values.
 - Recent click, hover, scroll, selection, and focus event tracking.
 - Backend context POSTs to `http://127.0.0.1:8000/intent`.
 - Deterministic intent-mode ranking across `understand`, `decide`, `compare`, `extract`, `debug`, and `act`.
