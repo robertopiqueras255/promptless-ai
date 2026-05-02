@@ -110,7 +110,7 @@ python -m backend.eval_intents
 If Git reports dubious ownership for this checkout, add the repository as a safe directory:
 
 ```bash
-git config --global --add safe.directory C:/Users/jpb20/promptless-ai
+git config --global --add safe.directory "$(pwd)"
 ```
 
 See `CONTRIBUTING.md` for the issue, branch, pull request, eval, and privacy workflow.
