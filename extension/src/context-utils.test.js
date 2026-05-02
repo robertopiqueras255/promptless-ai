@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { privacyRouteStatus, resultParts, suggestionBasis, textForElement } = require("./context-utils.js");
+const { privacyRouteStatus, resultMetaText, resultParts, suggestionBasis, textForElement } = require("./context-utils.js");
 
 function element({ tagName, textContent = "", value = "", attrs = {} }) {
   return {
@@ -119,4 +119,25 @@ test("result parts preserve plain paragraphs", () => {
   assert.deepEqual(resultParts("This page explains OAuth token expiry."), [
     { type: "paragraph", text: "This page explains OAuth token expiry." }
   ]);
+});
+
+test("result metadata includes route policy from execute response", () => {
+  assert.equal(
+    resultMetaText(
+      { title: "Customer dashboard", url: "https://crm.example.com/customer" },
+      { cloudAllowed: false, route: "local" }
+    ),
+    "Using redacted local page context from Customer dashboard (crm.example.com). Route policy: Cloud blocked."
+  );
+});
+
+test("result metadata omits route policy for execution errors", () => {
+  assert.equal(
+    resultMetaText(
+      { title: "Customer dashboard", url: "https://crm.example.com/customer" },
+      { cloudAllowed: false, route: "local" },
+      "error"
+    ),
+    "Using redacted local page context from Customer dashboard (crm.example.com)."
+  );
 });

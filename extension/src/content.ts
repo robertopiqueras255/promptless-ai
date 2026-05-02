@@ -46,7 +46,7 @@ const staticActions = [
   }
 ];
 
-const { privacyRouteStatus, resultParts, suggestionBasis, textForElement } = globalThis.PromptlessContext;
+const { privacyRouteStatus, resultMetaText, resultParts, suggestionBasis, textForElement } = globalThis.PromptlessContext;
 
 function pushEvent(event) {
   recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
@@ -618,26 +618,6 @@ function renderResultBody(body, result) {
     el.textContent = part.type === "bullet" ? `• ${part.text}` : part.text;
     body.appendChild(el);
   });
-}
-
-function resultMetaText(context, privacyMetadata = null, status = "done") {
-  const page = context?.title || context?.url || "current page";
-  const origin = urlOrigin(context?.url);
-  const source = origin ? `${page} (${origin})` : page;
-  const routeStatus = privacyMetadata && Object.prototype.hasOwnProperty.call(privacyMetadata, "cloudAllowed")
-    ? privacyRouteStatus(privacyMetadata)
-    : null;
-  const routeText = status !== "error" && routeStatus?.label ? ` Route policy: ${routeStatus.label}.` : "";
-  return `Using redacted local page context from ${source}.${routeText}`;
-}
-
-function urlOrigin(url) {
-  if (!url) return "";
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
 }
 
 document.addEventListener("click", (event) => {
