@@ -97,7 +97,7 @@ Trace review:
 python -m backend.review_traces
 ```
 
-The trace review includes Prompt Avoidance Rate, acceptance/execution metrics, and separate intent/execution privacy sensitivity labels, route counts, and redaction finding kinds.
+The trace review includes Prompt Avoidance Rate, acceptance/execution metrics, separate intent/execution privacy sensitivity labels, route counts, redaction finding kinds, and a Promptless AI Quality Report with best/noisy actions and pages with most dismissals.
 
 ## Development
 
