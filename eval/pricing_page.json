@@ -1,0 +1,14 @@
+{
+  "url": "https://example.com/pricing",
+  "title": "Pricing Plans",
+  "selectedText": "",
+  "visibleText": "Pricing\nFree plan includes 1,000 API calls per month. Pro plan costs $29 per seat and includes 100,000 API calls. Enterprise includes custom rate limits, SSO, audit logs, and priority support. Overage is billed per 1,000 requests. Monthly and annual billing are available.",
+  "elements": [
+    {"id": 1, "tag": "BUTTON", "text": "Start Free"},
+    {"id": 2, "tag": "BUTTON", "text": "Contact Sales"},
+    {"id": 3, "tag": "A", "text": "Compare plans", "href": "https://example.com/pricing#compare"}
+  ],
+  "recentEvents": [
+    {"type": "scroll", "y": 420, "ts": 1}
+  ]
+}

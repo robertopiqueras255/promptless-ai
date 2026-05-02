@@ -1,0 +1,13 @@
+{
+  "url": "https://community.example.com/t/slow-api-after-upgrade/123",
+  "title": "Slow API after upgrade",
+  "selectedText": "",
+  "focusedElement": "",
+  "viewportSummary": "Community thread | Slow API after upgrade | Replies",
+  "visibleText": "Slow API after upgrade\nOriginal poster says API latency increased from 200ms to 2s after upgrading to version 4.8. Replies suggest checking connection pooling, enabling compression, and reviewing new default retry settings. One maintainer says a patch is planned and asks for request IDs and logs.",
+  "elements": [
+    {"id": 1, "tag": "BUTTON", "text": "Reply"},
+    {"id": 2, "tag": "BUTTON", "text": "Follow"}
+  ],
+  "recentEvents": [{"type": "hover", "text": "Reply", "tag": "BUTTON", "ts": 1}]
+}

@@ -1,0 +1,17 @@
+{
+  "url": "https://shop.example.com/search?q=standing+desk",
+  "title": "Standing desks search results",
+  "selectedText": "",
+  "focusedElement": "",
+  "viewportSummary": "Standing desks | Sort by price | Filter by height | 48 results",
+  "visibleText": "Standing desks\nFlexDesk Basic $199 48 inch manual height adjustment. FlexDesk Pro $399 electric memory presets. ErgoLift Max $599 dual motor, 60 inch bamboo top, 10 year warranty. Sort by price, rating, and delivery date. Filters: width, material, motor type, warranty.",
+  "elements": [
+    {"id": 1, "tag": "BUTTON", "text": "Sort by price"},
+    {"id": 2, "tag": "BUTTON", "text": "Filter"},
+    {"id": 3, "tag": "A", "text": "FlexDesk Basic"},
+    {"id": 4, "tag": "A", "text": "FlexDesk Pro"},
+    {"id": 5, "tag": "A", "text": "ErgoLift Max"}
+  ],
+  "recentEvents": [{"type": "hover", "text": "ErgoLift Max", "tag": "A", "ts": 1}]
+}
+

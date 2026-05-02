@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Promptless AI MVP",
+  "version": "0.1.0",
+  "description": "Infers webpage intent and suggests useful actions without a chatbot.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"],
+      "css": ["src/styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Promptless AI",
+    "default_popup": "src/panel.html"
+  }
+}
+

@@ -1,0 +1,232 @@
+#promptless-ai-root {
+  bottom: 18px;
+  box-sizing: border-box;
+  color-scheme: light;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  left: 50%;
+  max-width: min(760px, calc(100vw - 24px));
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+}
+
+#promptless-ai-root *,
+#promptless-ai-root *::before,
+#promptless-ai-root *::after {
+  box-sizing: border-box;
+}
+
+.promptless-pill {
+  align-items: center;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.24);
+  color: #f9fafb;
+  display: flex;
+  gap: 10px;
+  padding: 9px 10px 9px 12px;
+}
+
+.promptless-intent {
+  color: #f3f4f6;
+  flex: 0 1 auto;
+  font-size: 13px;
+  line-height: 1.35;
+  min-width: 180px;
+}
+
+.promptless-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.promptless-action,
+.promptless-dismiss {
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.promptless-action {
+  background: #f9fafb;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 650;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.promptless-action:hover {
+  background: #e5e7eb;
+}
+
+.promptless-action:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.promptless-dismiss {
+  align-items: center;
+  background: transparent;
+  color: #cbd5e1;
+  display: inline-flex;
+  font-size: 16px;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.promptless-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.promptless-result {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.26);
+  color: #f9fafb;
+  max-height: min(420px, calc(100vh - 32px));
+  overflow: hidden;
+  width: min(720px, calc(100vw - 24px));
+}
+
+.promptless-result-error {
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.promptless-result-error .promptless-result-title {
+  color: #fecaca;
+}
+
+.promptless-result-title {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  font-weight: 750;
+  padding: 10px 12px;
+}
+
+.promptless-result-body {
+  background: transparent;
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.promptless-result-controls {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 12px;
+}
+
+.promptless-result-controls button {
+  appearance: none;
+  background: #f9fafb;
+  border: 0;
+  border-radius: 6px;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.promptless-result-controls button:hover {
+  background: #e5e7eb;
+}
+
+.promptless-panel-body {
+  background: #f8fafc;
+  color: #111827;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  min-width: 280px;
+}
+
+.promptless-panel {
+  padding: 14px;
+}
+
+.promptless-panel h1 {
+  font-size: 16px;
+  line-height: 1.25;
+  margin: 0 0 8px;
+}
+
+.promptless-panel p {
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.promptless-panel dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.promptless-panel div {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 8px;
+}
+
+.promptless-panel dt {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.promptless-panel dd {
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  #promptless-ai-root {
+    bottom: 10px;
+    max-width: calc(100vw - 16px);
+  }
+
+  .promptless-pill {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .promptless-intent {
+    min-width: 0;
+  }
+
+  .promptless-actions {
+    flex-wrap: wrap;
+  }
+
+  .promptless-dismiss {
+    position: absolute;
+    right: 8px;
+    top: 6px;
+  }
+}

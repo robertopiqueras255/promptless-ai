@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node / extension tooling
+node_modules/
+dist/
+build/
+
+# Local runtime data and privacy-sensitive traces
+data/*.jsonl
+!data/.gitkeep
+
+# Local env/secrets
+.env
+.env.*
+*.key
+*.pem
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

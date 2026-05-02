@@ -1,0 +1,14 @@
+{
+  "url": "https://example.com/blog/ai-search-patterns",
+  "title": "How AI Search Changes Product Discovery",
+  "selectedText": "",
+  "focusedElement": "",
+  "viewportSummary": "How AI Search Changes Product Discovery | Key takeaways | Examples",
+  "visibleText": "How AI Search Changes Product Discovery\nAI search changes how users evaluate products by compressing discovery, comparison, and validation into one workflow. The article explains query refinement, source trust, review synthesis, and how product teams should structure content for answer engines. It includes examples from ecommerce, SaaS, and travel.",
+  "elements": [
+    {"id": 1, "tag": "A", "text": "Subscribe"},
+    {"id": 2, "tag": "A", "text": "Share"}
+  ],
+  "recentEvents": [{"type": "scroll", "y": 600, "ts": 1}]
+}
+

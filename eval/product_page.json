@@ -1,0 +1,15 @@
+{
+  "url": "https://store.example.com/products/noise-cancelling-headphones",
+  "title": "AeroSound Pro Noise Cancelling Headphones",
+  "selectedText": "",
+  "focusedElement": "",
+  "viewportSummary": "AeroSound Pro | Wireless headphones | Compare colors | Add to cart",
+  "visibleText": "AeroSound Pro Noise Cancelling Headphones\n$249\n40 hour battery life. Adaptive noise cancellation. Bluetooth multipoint. Includes travel case and USB-C charging. Available in black, silver, and blue. Reviews mention strong comfort and good call quality. Add to cart. Compare with AeroSound Lite.",
+  "elements": [
+    {"id": 1, "tag": "BUTTON", "text": "Add to cart"},
+    {"id": 2, "tag": "BUTTON", "text": "Compare"},
+    {"id": 3, "tag": "SELECT", "text": "Choose color"}
+  ],
+  "recentEvents": [{"type": "hover", "text": "Compare", "tag": "BUTTON", "ts": 1}]
+}
+

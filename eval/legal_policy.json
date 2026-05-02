@@ -1,0 +1,14 @@
+{
+  "url": "https://example.com/legal/privacy-policy",
+  "title": "Privacy Policy",
+  "selectedText": "",
+  "focusedElement": "",
+  "viewportSummary": "Privacy Policy | Data collected | Retention | User rights",
+  "visibleText": "Privacy Policy\nEffective date: March 1, 2026. We collect account information, usage data, billing data, and device identifiers. Data is retained for up to 24 months unless required for legal obligations. Users may request access, deletion, correction, or export. We share data with payment processors and analytics providers under contractual safeguards.",
+  "elements": [
+    {"id": 1, "tag": "A", "text": "Contact privacy team"},
+    {"id": 2, "tag": "A", "text": "Request data export"}
+  ],
+  "recentEvents": [{"type": "scroll", "y": 900, "ts": 1}]
+}
+

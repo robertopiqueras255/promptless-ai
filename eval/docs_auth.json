@@ -1,0 +1,13 @@
+{
+  "url": "https://docs.stripe.com/api/authentication",
+  "title": "Authentication | Stripe API Reference",
+  "selectedText": "",
+  "visibleText": "Authentication\nThe Stripe API uses API keys to authenticate requests. Provide your secret key as a bearer token. All API requests must be made over HTTPS. Authentication errors indicate invalid or missing credentials. Requests and responses use JSON.",
+  "elements": [
+    {"id": 1, "tag": "A", "text": "Authentication", "href": "https://docs.stripe.com/api/authentication"},
+    {"id": 2, "tag": "A", "text": "Errors", "href": "https://docs.stripe.com/error-codes"}
+  ],
+  "recentEvents": [
+    {"type": "hover", "text": "Authentication", "tag": "A", "ts": 1}
+  ]
+}

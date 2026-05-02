@@ -1,0 +1,13 @@
+{
+  "url": "https://github.com/example/project/issues/42",
+  "title": "Bug: OAuth callback fails with 500",
+  "selectedText": "",
+  "visibleText": "Bug report\nOAuth callback returns 500 after redirect. Expected login to complete. Actual result is Internal Server Error. Stack trace shows TokenExchangeError in auth/callback.ts line 88. Reproduction steps: create app, login, approve scope, redirect back. Environment: Chrome, production API, version 1.8.2.",
+  "elements": [
+    {"id": 1, "tag": "BUTTON", "text": "Comment"},
+    {"id": 2, "tag": "A", "text": "auth/callback.ts"}
+  ],
+  "recentEvents": [
+    {"type": "hover", "text": "Stack trace", "tag": "DIV", "ts": 1}
+  ]
+}
