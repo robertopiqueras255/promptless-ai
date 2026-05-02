@@ -45,8 +45,8 @@ If the backend is unavailable, the extension still shows static universal sugges
 From repo root:
 
 ```bash
-python3 -m pip install -r backend/requirements.txt
-python3 -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
+python -m pip install -r backend/requirements.txt
+python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Hermes execution defaults to:
@@ -58,6 +58,18 @@ Hermes execution defaults to:
 Set `PROMPTLESS_HERMES_ENABLED=0` to force deterministic fallback execution during local debugging.
 Set `PROMPTLESS_HERMES_TIMEOUT_SECONDS` to tune the execution timeout, default `45`.
 Set `PROMPTLESS_MAX_RESULT_CHARS` to tune panel result length, default `5000`.
+
+On Windows PowerShell:
+
+```powershell
+$env:PROMPTLESS_HERMES_ENABLED = "0"
+```
+
+On macOS/Linux:
+
+```bash
+export PROMPTLESS_HERMES_ENABLED=0
+```
 
 Health check:
 
@@ -76,7 +88,29 @@ curl -X POST http://127.0.0.1:8000/privacy/preview \
 Trace review:
 
 ```bash
-python3 -m backend.review_traces
+python -m backend.review_traces
 ```
 
 The trace review includes Prompt Avoidance Rate, acceptance/execution metrics, privacy sensitivity labels, route counts, and redaction finding kinds.
+
+## Development
+
+Run backend tests:
+
+```bash
+python -m pytest
+```
+
+Run deterministic intent fixtures:
+
+```bash
+python -m backend.eval_intents
+```
+
+If Git reports dubious ownership for this checkout, add the repository as a safe directory:
+
+```bash
+git config --global --add safe.directory C:/Users/jpb20/promptless-ai
+```
+
+See `CONTRIBUTING.md` for the issue, branch, pull request, eval, and privacy workflow.
