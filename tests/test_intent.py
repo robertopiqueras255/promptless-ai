@@ -90,6 +90,20 @@ def test_focused_checkout_form_prioritizes_next_action():
     assert actions[0].label == "Next step"
 
 
+def test_passive_search_input_does_not_trigger_next_action():
+    ctx = IntentRequest(
+        url="https://example.com",
+        title="Home",
+        visibleText="",
+        elements=[PageElement(tag="INPUT", text="Search search field input")],
+    )
+
+    intent, confidence, actions = rank_actions(ctx)
+
+    assert confidence < 0.65
+    assert actions == []
+
+
 def test_recent_configure_click_boosts_action_help():
     ctx = IntentRequest(
         url="https://admin.example.com/integrations/slack",

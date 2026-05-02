@@ -369,9 +369,7 @@ def has_form_interaction(ctx: IntentRequest) -> bool:
     if has_form_focus(ctx):
         return True
     form_tags = {"input", "textarea", "select"}
-    if any((event.tag or "").lower() in form_tags for event in ctx.recentEvents[-10:]):
-        return True
-    return any((element.tag or "").lower() in form_tags for element in ctx.elements[:80])
+    return any((event.tag or "").lower() in form_tags for event in ctx.recentEvents[-10:])
 
 
 def visible_controls(ctx: IntentRequest) -> list[dict[str, str | None]]:

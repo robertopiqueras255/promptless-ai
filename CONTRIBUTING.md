@@ -80,7 +80,7 @@ During local debugging, force deterministic execution fallback instead of Hermes
 
 On Windows CMD:
 
-```bash
+```cmd
 set PROMPTLESS_HERMES_ENABLED=0
 ```
 
