@@ -20,6 +20,7 @@ def test_selected_text_prioritizes_explanation():
     assert confidence >= 0.65
     assert "understand" in intent
     assert actions[0].id == "explain_this"
+    assert actions[0].label == "Explain selection"
 
 
 def test_pricing_page_with_plan_controls_prioritizes_comparison():
@@ -35,7 +36,11 @@ def test_pricing_page_with_plan_controls_prioritizes_comparison():
         recentEvents=[RecentEvent(type="hover", text="Pro plan", tag="BUTTON")],
     )
 
-    assert action_ids(ctx)[0] == "compare_visible_options"
+    _intent, _confidence, actions = rank_actions(ctx)
+
+    assert actions[0].id == "compare_visible_options"
+    assert actions[0].label == "Compare plans"
+    assert any(action.id == "summarize_what_matters" and action.label == "Summarize tradeoffs" for action in actions)
 
 
 def test_github_issue_with_error_signals_prioritizes_debug_actions():
@@ -60,6 +65,8 @@ def test_github_issue_with_error_signals_prioritizes_debug_actions():
         "extract_key_facts",
         "what_should_i_do_next",
     ]
+    assert actions[0].label == "Summarize issue"
+    assert actions[2].label == "Find next fix"
 
 
 def test_focused_checkout_form_prioritizes_next_action():
@@ -80,6 +87,7 @@ def test_focused_checkout_form_prioritizes_next_action():
     assert confidence >= 0.85
     assert "next action" in intent
     assert actions[0].id == "what_should_i_do_next"
+    assert actions[0].label == "Next step"
 
 
 def test_recent_configure_click_boosts_action_help():

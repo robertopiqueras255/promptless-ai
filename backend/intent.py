@@ -197,6 +197,35 @@ def action_from_id(action_id: str, score: float, ctx: IntentRequest) -> Suggeste
 
 
 def contextual_label(action_id: str, ctx: IntentRequest) -> str:
+    text = combined_text(ctx).lower()
+    url_title = f"{ctx.url} {ctx.title}".lower()
+    pricing_or_plans = has_pricing_or_plan_signals(url_title, text)
+    debug_page = has_debug_evidence(text, url_title)
+
+    if action_id == "explain_this" and ctx.selectedText.strip():
+        return "Explain selection"
+    if action_id == "extract_key_facts":
+        if is_legal_or_policy(url_title, text):
+            return "Extract obligations"
+        if pricing_or_plans:
+            return "Extract prices"
+        if is_docs_like(url_title, text):
+            return "Extract limits"
+    if action_id == "compare_visible_options" and pricing_or_plans:
+        return "Compare plans"
+    if action_id == "summarize_what_matters":
+        if debug_page:
+            return "Summarize issue"
+        if pricing_or_plans:
+            return "Summarize tradeoffs"
+        if is_legal_or_policy(url_title, text):
+            return "Summarize terms"
+    if action_id == "what_should_i_do_next":
+        if debug_page:
+            return "Find next fix"
+        if has_form_interaction(ctx) or has_recent_action_event(ctx):
+            return "Next step"
+
     labels = {
         "explain_this": "Explain this",
         "summarize_what_matters": "Summarize",
@@ -272,6 +301,10 @@ def has_decision_signals(url_title: str, text: str) -> bool:
         "reviews",
     ]
     return any(term in url_title or term in text for term in terms)
+
+
+def has_pricing_or_plan_signals(url_title: str, text: str) -> bool:
+    return any(term in url_title or term in text for term in ["pricing", "plans", "billing", "per month", "/mo", "enterprise"])
 
 
 def count_option_signals(ctx: IntentRequest, text: str) -> int:
