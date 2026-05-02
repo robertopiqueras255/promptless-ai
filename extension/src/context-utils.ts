@@ -25,6 +25,25 @@
     return label.trim().slice(0, 120);
   }
 
+  function appendRecentEvent(events, event, limit = 50) {
+    const current = Array.isArray(events) ? events : [];
+    const next = { ...event };
+    const last = current[current.length - 1];
+    if (last && eventSignature(last) === eventSignature(next)) {
+      return [...current.slice(0, -1), { ...last, ...next }].slice(-limit);
+    }
+    return [...current, next].slice(-limit);
+  }
+
+  function eventSignature(event) {
+    return [
+      event?.type || "",
+      event?.tag || "",
+      event?.text || "",
+      event?.placeholder || ""
+    ].join("\u0000");
+  }
+
   function privacyRouteStatus(preview) {
     if (preview?.error) {
       return { className: "promptless-route promptless-route-local", label: "Unavailable" };
@@ -151,7 +170,9 @@
   }
 
   const api = {
+    appendRecentEvent,
     compactPreviewText,
+    eventSignature,
     formatFindingKinds,
     privacyRouteStatus,
     resultMetaText,

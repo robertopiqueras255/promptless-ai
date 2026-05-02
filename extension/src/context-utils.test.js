@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  appendRecentEvent,
   compactPreviewText,
   formatFindingKinds,
   privacyRouteStatus,
@@ -75,6 +76,33 @@ test("non-form elements use visible text", () => {
   });
 
   assert.equal(textForElement(el), "Pricing details");
+});
+
+test("recent events coalesce consecutive duplicate signals", () => {
+  assert.deepEqual(
+    appendRecentEvent(
+      [{ type: "hover", text: "Pricing", tag: "A", ts: 1 }],
+      { type: "hover", text: "Pricing", tag: "A", ts: 3 }
+    ),
+    [{ type: "hover", text: "Pricing", tag: "A", ts: 3 }]
+  );
+});
+
+test("recent events preserve distinct consecutive signals and enforce limit", () => {
+  assert.deepEqual(
+    appendRecentEvent(
+      [
+        { type: "click", text: "Plans", tag: "A", ts: 1 },
+        { type: "hover", text: "Pro", tag: "BUTTON", ts: 2 }
+      ],
+      { type: "focus", placeholder: "Email", tag: "INPUT", ts: 3 },
+      2
+    ),
+    [
+      { type: "hover", text: "Pro", tag: "BUTTON", ts: 2 },
+      { type: "focus", placeholder: "Email", tag: "INPUT", ts: 3 }
+    ]
+  );
 });
 
 test("privacy route status names blocked local routes explicitly", () => {

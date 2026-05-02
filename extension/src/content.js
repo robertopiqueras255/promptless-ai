@@ -47,6 +47,7 @@ const staticActions = [
 ];
 
 const {
+  appendRecentEvent,
   formatFindingKinds,
   privacyRouteStatus,
   resultMetaText,
@@ -58,7 +59,7 @@ const {
 } = globalThis.PromptlessContext;
 
 function pushEvent(event) {
-  recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
+  recentEvents = appendRecentEvent(recentEvents, event, MAX_EVENTS);
 }
 
 function collectContext() {
