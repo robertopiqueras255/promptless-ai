@@ -49,6 +49,25 @@ def print_counter(title: str, counter: Counter, limit: int = 10) -> None:
         print(f"  {key}: {count}")
 
 
+def privacy_for_record(record: dict) -> dict:
+    if record.get("type") == "execution":
+        return (record.get("metadata") or {}).get("privacy") or {}
+    return record.get("privacy") or {}
+
+
+def privacy_counters(records: list[dict]) -> tuple[Counter, Counter, Counter, int]:
+    labels = Counter((privacy_for_record(r) or {}).get("sensitivity", "(unknown)") for r in records)
+    routes = Counter((privacy_for_record(r) or {}).get("route", "(unknown)") for r in records)
+    finding_kinds: Counter[str] = Counter()
+    redaction_total = 0
+    for record in records:
+        privacy = privacy_for_record(record)
+        redaction_total += int(privacy.get("redactionCount") or 0)
+        for kind in privacy.get("findingKinds") or []:
+            finding_kinds[kind] += 1
+    return labels, routes, finding_kinds, redaction_total
+
+
 def main() -> None:
     records = load_records(TRACE_PATH)
     intents = [r for r in records if r.get("type") == "intent"]
@@ -83,15 +102,8 @@ def main() -> None:
     intent_names = Counter((r.get("response") or {}).get("intent", "(unknown)") for r in intents)
     pages = Counter((r.get("request") or {}).get("url", "(unknown)") for r in intents)
     domains = Counter(domain_for(r) for r in intents)
-    privacy_labels = Counter((r.get("privacy") or {}).get("sensitivity", "(unknown)") for r in intents)
-    privacy_routes = Counter((r.get("privacy") or {}).get("route", "(unknown)") for r in intents)
-    finding_kinds: Counter[str] = Counter()
-    redaction_total = 0
-    for record in intents:
-        privacy = record.get("privacy") or {}
-        redaction_total += int(privacy.get("redactionCount") or 0)
-        for kind in privacy.get("findingKinds") or []:
-            finding_kinds[kind] += 1
+    intent_privacy_labels, intent_privacy_routes, intent_finding_kinds, intent_redaction_total = privacy_counters(intents)
+    execution_privacy_labels, execution_privacy_routes, execution_finding_kinds, execution_redaction_total = privacy_counters(executions)
 
     print(f"Trace file: {TRACE_PATH}")
     print(f"Total records: {len(records)}")
@@ -101,14 +113,18 @@ def main() -> None:
     print(f"Total executed: {len(executions)}")
     print(f"Total thumbs_up: {feedback_by_event['thumbs_up']}")
     print(f"Total thumbs_down: {feedback_by_event['thumbs_down']}")
-    print(f"Total redactions: {redaction_total}")
+    print(f"Total intent redactions: {intent_redaction_total}")
+    print(f"Total execution redactions: {execution_redaction_total}")
 
     print("\nPrompt Avoidance Rate")
     print(f"  accepted/shown: {feedback_by_event['accepted']}/{feedback_by_event['shown']} ({percent(feedback_by_event['accepted'], feedback_by_event['shown'])})")
 
-    print_counter("Privacy sensitivity labels", privacy_labels)
-    print_counter("Privacy routes", privacy_routes)
-    print_counter("Redaction finding kinds", finding_kinds)
+    print_counter("Intent privacy sensitivity labels", intent_privacy_labels)
+    print_counter("Intent privacy routes", intent_privacy_routes)
+    print_counter("Intent redaction finding kinds", intent_finding_kinds)
+    print_counter("Execution privacy sensitivity labels", execution_privacy_labels)
+    print_counter("Execution privacy routes", execution_privacy_routes)
+    print_counter("Execution redaction finding kinds", execution_finding_kinds)
 
     print("\nAcceptance rate per action")
     all_actions = sorted(set(shown_by_action) | set(accepted_by_action) | set(executed_by_action))

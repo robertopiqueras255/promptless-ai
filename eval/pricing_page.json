@@ -10,5 +10,10 @@
   ],
   "recentEvents": [
     {"type": "scroll", "y": 420, "ts": 1}
-  ]
+  ],
+  "expected": {
+    "intentIncludes": "decide",
+    "firstActionId": "compare_visible_options",
+    "firstActionLabel": "Compare plans"
+  }
 }

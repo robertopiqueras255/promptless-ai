@@ -16,7 +16,7 @@ What should change?
 
 ## Acceptance Criteria
 
-- [ ] 
+- [ ]
 
 ## Privacy And UX Risk
 

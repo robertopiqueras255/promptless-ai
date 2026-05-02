@@ -72,6 +72,7 @@ def execute_action(request: ExecuteRequest) -> ExecuteResponse:
     sanitized = sanitize_context(request.context) if request.context else None
     route = route_context(sanitized, PrivacyMode.REDACTED_CLOUD) if sanitized else None
     safe_context = IntentRequest.model_validate(sanitized.context) if sanitized else None
+    privacy = privacy_metadata(sanitized, route) if sanitized and route else {}
 
     # Execution adapters receive redacted context by default. If a future local
     # model truly needs raw context, it must explicitly use the local-only route.
@@ -83,8 +84,8 @@ def execute_action(request: ExecuteRequest) -> ExecuteResponse:
         "durationMs": outcome.duration_ms,
         "error": outcome.error,
     }
-    if sanitized and route:
-        metadata["privacy"] = privacy_metadata(sanitized, route)
+    if privacy:
+        metadata["privacy"] = privacy
     log_execution(
         request.traceId,
         request.actionId,
@@ -93,7 +94,7 @@ def execute_action(request: ExecuteRequest) -> ExecuteResponse:
     )
     if outcome.status == "done":
         log_feedback(request.traceId, "executed", action_id=request.actionId)
-    return ExecuteResponse(status=outcome.status, result=outcome.result)
+    return ExecuteResponse(status=outcome.status, result=outcome.result, privacy=privacy)
 
 
 @app.post("/feedback")

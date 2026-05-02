@@ -16,7 +16,7 @@ What should have happened?
 
 ## Reproduction Steps
 
-1. 
+1.
 
 ## Environment
 

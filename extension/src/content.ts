@@ -3,7 +3,7 @@ const MAX_EVENTS = 50;
 const SIGNIFICANT_SCROLL_PX = 350;
 const IDLE_SEND_MS = 3000;
 const MIN_PILL_VISIBLE_MS = 12000;
-const DEBUG = true;
+const DEBUG = false;
 
 let recentEvents = [];
 let lastScrollY = window.scrollY;
@@ -16,6 +16,10 @@ let activeExecution = false;
 let resultVisible = false;
 let visibleSuggestionKey = "";
 let visibleSuggestionShownAt = 0;
+let lastSuggestionIntent = "";
+let lastSuggestionActions = [];
+let lastSuggestionContext = null;
+let lastSuggestionTraceId = null;
 
 function debug(...args) {
   if (DEBUG) console.debug("[PromptlessAI]", ...args);
@@ -42,12 +46,21 @@ const staticActions = [
   }
 ];
 
-function textForElement(el) {
-  return (el.textContent || el.placeholder || el.value || "").trim().slice(0, 120);
-}
+const {
+  appendRecentEvent,
+  formatFindingKinds,
+  contextSignature,
+  privacyRouteStatus,
+  resultMetaText,
+  resultParts,
+  routeDescription,
+  suggestionBasis,
+  summarizePreviewContext,
+  textForElement
+} = globalThis.PromptlessContext;
 
 function pushEvent(event) {
-  recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
+  recentEvents = appendRecentEvent(recentEvents, event, MAX_EVENTS);
 }
 
 function collectContext() {
@@ -96,15 +109,6 @@ function buildViewportSummary() {
     .map((el) => (el.textContent || "").trim())
     .filter(Boolean);
   return [document.title, ...headings].join(" | ").slice(0, 1200);
-}
-
-function contextSignature(context) {
-  return [
-    context.url,
-    context.title,
-    context.selectedText.slice(0, 240),
-    context.visibleText.slice(0, 1200)
-  ].join("|");
 }
 
 function ensureTraceId(traceId) {
@@ -182,6 +186,11 @@ function renderStaticSuggestions(context) {
 function renderSuggestions(intent, actions, context, traceId) {
   if (dismissed || actions.length === 0) return;
 
+  lastSuggestionIntent = intent;
+  lastSuggestionActions = actions.slice(0, 3);
+  lastSuggestionContext = context;
+  lastSuggestionTraceId = traceId;
+
   const suggestionKey = actions
     .slice(0, 3)
     .map((action) => `${action.id}:${action.label}`)
@@ -206,9 +215,18 @@ function renderSuggestions(intent, actions, context, traceId) {
   const pill = document.createElement("div");
   pill.className = "promptless-pill";
 
+  const intentWrap = document.createElement("div");
+  intentWrap.className = "promptless-intent-wrap";
+
   const label = document.createElement("div");
   label.className = "promptless-intent";
   label.textContent = `Looks like you're ${intent}.`;
+
+  const basis = document.createElement("div");
+  basis.className = "promptless-basis";
+  basis.textContent = suggestionBasis(context);
+
+  intentWrap.append(label, basis);
 
   const actionsWrap = document.createElement("div");
   actionsWrap.className = "promptless-actions";
@@ -237,6 +255,15 @@ function renderSuggestions(intent, actions, context, traceId) {
     actionsWrap.appendChild(button);
   });
 
+  const privacy = document.createElement("button");
+  privacy.type = "button";
+  privacy.className = "promptless-privacy-button";
+  privacy.textContent = "Privacy";
+  privacy.title = "Preview the redacted context and model route before execution.";
+  privacy.addEventListener("click", () => {
+    void showPrivacyPreview(context, privacy);
+  });
+
   const close = document.createElement("button");
   close.type = "button";
   close.className = "promptless-dismiss";
@@ -249,7 +276,7 @@ function renderSuggestions(intent, actions, context, traceId) {
     void postFeedback("dismissed", ensureTraceId(traceId), null, context);
   });
 
-  pill.append(label, actionsWrap, close);
+  pill.append(intentWrap, actionsWrap, privacy, close);
   root.appendChild(pill);
 }
 
@@ -279,6 +306,140 @@ async function postFeedback(event, traceId, actionId, context = null) {
   }
 }
 
+async function showPrivacyPreview(context, triggerButton = null, onClose = null) {
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = "Checking...";
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/privacy/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(context)
+    });
+    const text = await response.text();
+    let preview = null;
+    try {
+      preview = text ? JSON.parse(text) : null;
+    } catch {
+      preview = { error: text || "Privacy preview failed." };
+    }
+
+    if (!response.ok) {
+      showPrivacyPanel({ error: preview?.detail || preview?.error || `Privacy preview failed with HTTP ${response.status}.` }, onClose);
+      return;
+    }
+
+    showPrivacyPanel(preview || {}, onClose);
+  } catch (error) {
+    debug("privacy preview failed", error);
+    showPrivacyPanel({ error: "Privacy preview unavailable. Is the local backend running?" }, onClose);
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = "Privacy";
+    }
+  }
+}
+
+function showPrivacyPanel(preview, onClose = null) {
+  let root = document.getElementById("promptless-ai-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "promptless-ai-root";
+    document.documentElement.appendChild(root);
+  }
+
+  root.innerHTML = "";
+  resultVisible = true;
+  visibleSuggestionKey = "";
+  visibleSuggestionShownAt = 0;
+
+  const panel = document.createElement("div");
+  panel.className = preview?.error ? "promptless-privacy promptless-result-error" : "promptless-privacy";
+
+  const header = document.createElement("div");
+  header.className = "promptless-privacy-header";
+
+  const title = document.createElement("div");
+  title.className = "promptless-privacy-title";
+  title.textContent = "Privacy preview";
+
+  const status = document.createElement("div");
+  const routeStatus = privacyRouteStatus(preview);
+  status.className = routeStatus.className;
+  status.textContent = routeStatus.label;
+
+  header.append(title, status);
+
+  const body = document.createElement("div");
+  body.className = "promptless-privacy-body";
+
+  if (preview?.error) {
+    const error = document.createElement("p");
+    error.className = "promptless-privacy-error";
+    error.textContent = preview.error;
+    body.appendChild(error);
+  } else {
+    body.append(
+      makePrivacyMetric("Sensitivity", preview?.sensitivity || "unknown"),
+      makePrivacyMetric("Redactions", String(preview?.redactionCount || 0)),
+      makePrivacyMetric("Route", routeDescription(preview)),
+      makePrivacyMetric("Finding kinds", formatFindingKinds(preview?.findingKinds))
+    );
+
+    const contextBlock = document.createElement("div");
+    contextBlock.className = "promptless-context-preview";
+
+    const contextTitle = document.createElement("div");
+    contextTitle.className = "promptless-context-title";
+    contextTitle.textContent = "Context used";
+
+    const contextText = document.createElement("pre");
+    contextText.className = "promptless-context-text";
+    contextText.textContent = summarizePreviewContext(preview?.context || {});
+
+    contextBlock.append(contextTitle, contextText);
+    body.appendChild(contextBlock);
+  }
+
+  const controls = document.createElement("div");
+  controls.className = "promptless-result-controls";
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "Close";
+  close.addEventListener("click", () => {
+    resultVisible = false;
+    if (typeof onClose === "function") {
+      onClose();
+    } else if (lastSuggestionActions.length && lastSuggestionContext) {
+      renderSuggestions(lastSuggestionIntent, lastSuggestionActions, lastSuggestionContext, lastSuggestionTraceId);
+    } else {
+      hideSuggestions({ force: true });
+    }
+  });
+
+  controls.append(close);
+  panel.append(header, body, controls);
+  root.appendChild(panel);
+}
+
+function makePrivacyMetric(label, value) {
+  const item = document.createElement("div");
+  item.className = "promptless-privacy-metric";
+
+  const name = document.createElement("span");
+  name.textContent = label;
+
+  const detail = document.createElement("strong");
+  detail.textContent = value || "-";
+
+  item.append(name, detail);
+  return item;
+}
+
 async function executeAction(action, context, traceId, button) {
   activeExecution = true;
   const payload = { traceId, actionId: action.id, context };
@@ -299,14 +460,14 @@ async function executeAction(action, context, traceId, button) {
     debug("execute response", { status: response.status, body: result });
 
     if (!response.ok) {
-      showResult(action.label, result?.detail || result?.result || `Execution failed with HTTP ${response.status}.`, traceId, action.id, "error");
+      showResult(action, result?.detail || result?.result || `Execution failed with HTTP ${response.status}.`, traceId, action.id, "error", context, result?.privacy || null);
       return;
     }
 
-    showResult(action.label, result?.result || "No result returned.", traceId, action.id, result?.status || "done");
+    showResult(action, result?.result || "No result returned.", traceId, action.id, result?.status || "done", context, result?.privacy || null);
   } catch (error) {
     debug("execute request failed", error);
-    showResult(action.label, "Backend execution failed. Is the local server running?", traceId, action.id, "error");
+    showResult(action, "Backend execution failed. Is the local server running?", traceId, action.id, "error", context);
   } finally {
     activeExecution = false;
     if (button) {
@@ -316,7 +477,7 @@ async function executeAction(action, context, traceId, button) {
   }
 }
 
-function showResult(label, result, traceId, actionId, status = "done") {
+function showResult(action, result, traceId, actionId, status = "done", context = null, privacyMetadata = null) {
   let root = document.getElementById("promptless-ai-root");
   if (!root) {
     root = document.createElement("div");
@@ -331,16 +492,50 @@ function showResult(label, result, traceId, actionId, status = "done") {
   const panel = document.createElement("div");
   panel.className = status === "error" ? "promptless-result promptless-result-error" : "promptless-result";
 
+  const header = document.createElement("div");
+  header.className = "promptless-result-header";
+
+  const heading = document.createElement("div");
+  heading.className = "promptless-result-heading";
+
   const title = document.createElement("div");
   title.className = "promptless-result-title";
-  title.textContent = status === "error" ? `${label} failed` : label;
+  title.textContent = status === "error" ? `${action.label} failed` : action.label;
 
-  const body = document.createElement("pre");
+  const badge = document.createElement("div");
+  badge.className = status === "error" ? "promptless-result-badge promptless-result-badge-error" : "promptless-result-badge";
+  badge.textContent = status === "error" ? "Error" : "Done";
+
+  heading.append(title, badge);
+
+  const meta = document.createElement("div");
+  meta.className = "promptless-result-meta";
+  meta.textContent = resultMetaText(context, privacyMetadata, status);
+
+  const description = document.createElement("div");
+  description.className = "promptless-result-description";
+  description.textContent = action.description || "Result generated from the current page context.";
+
+  header.append(heading, meta, description);
+
+  const body = document.createElement("div");
   body.className = "promptless-result-body";
-  body.textContent = result;
+  renderResultBody(body, result);
 
   const controls = document.createElement("div");
   controls.className = "promptless-result-controls";
+
+  const privacy = document.createElement("button");
+  privacy.type = "button";
+  privacy.textContent = "Privacy";
+  privacy.addEventListener("click", () => {
+    if (context) {
+      void showPrivacyPreview(context, null, () => {
+        showResult(action, result, traceId, actionId, status, context, privacyMetadata);
+      });
+    }
+  });
+  privacy.disabled = !context;
 
   const copy = document.createElement("button");
   copy.type = "button";
@@ -365,9 +560,18 @@ function showResult(label, result, traceId, actionId, status = "done") {
     hideSuggestions({ force: true });
   });
 
-  controls.append(copy, good, bad, close);
-  panel.append(title, body, controls);
+  controls.append(privacy, copy, good, bad, close);
+  panel.append(header, body, controls);
   root.appendChild(panel);
+}
+
+function renderResultBody(body, result) {
+  resultParts(result).forEach((part) => {
+    const el = document.createElement(part.type === "bullet" ? "div" : "p");
+    el.className = `promptless-result-${part.type}`;
+    el.textContent = part.type === "bullet" ? `• ${part.text}` : part.text;
+    body.appendChild(el);
+  });
 }
 
 document.addEventListener("click", (event) => {

@@ -56,6 +56,12 @@ python -m backend.eval_intents
 
 For extension UI changes, manually load `extension/` as an unpacked Chrome or Chromium extension and validate against `test-page.html` plus at least one real page.
 
+For browser-side context helper changes, run:
+
+```bash
+node --test extension/src/context-utils.test.js
+```
+
 ## Local Setup
 
 Install backend dependencies from the repository root:
@@ -74,7 +80,7 @@ During local debugging, force deterministic execution fallback instead of Hermes
 
 On Windows CMD:
 
-```bash
+```cmd
 set PROMPTLESS_HERMES_ENABLED=0
 ```
 

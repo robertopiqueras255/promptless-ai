@@ -92,6 +92,7 @@ class ExecuteRequest(BaseModel):
 class ExecuteResponse(BaseModel):
     status: Literal["done", "error"]
     result: str
+    privacy: dict[str, Any] = Field(default_factory=dict)
 
 
 FeedbackEvent = Literal["shown", "accepted", "dismissed", "executed", "result_closed", "thumbs_up", "thumbs_down"]

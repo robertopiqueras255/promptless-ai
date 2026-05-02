@@ -83,9 +83,19 @@ def infer_intent_mode(ctx: IntentRequest) -> tuple[IntentMode, float]:
         "act": 0.50,
     }
 
-    if ctx.selectedText.strip() or ctx.focusedElement.strip():
+    form_focus = has_form_focus(ctx)
+    action_signal = has_action_signals(text, controls) or has_recent_action_event(ctx)
+
+    if ctx.selectedText.strip():
         mode_scores["understand"] += 0.24
         mode_scores["extract"] += 0.10
+    elif ctx.focusedElement.strip():
+        if form_focus:
+            mode_scores["act"] += 0.24
+            mode_scores["decide"] += 0.08
+        else:
+            mode_scores["understand"] += 0.18
+            mode_scores["extract"] += 0.06
 
     if is_docs_like(url_title, text):
         mode_scores["understand"] += 0.20
@@ -128,9 +138,12 @@ def infer_intent_mode(ctx: IntentRequest) -> tuple[IntentMode, float]:
         mode_scores["extract"] = min(mode_scores["extract"], 0.82)
         mode_scores["compare"] = min(mode_scores["compare"], 0.56)
 
-    if has_action_signals(text, controls):
+    if action_signal:
         mode_scores["act"] += 0.22
         mode_scores["decide"] += 0.08
+
+    if has_form_interaction(ctx):
+        mode_scores["act"] += 0.16
 
     # Auth/API/reference docs often mention errors and responses. Keep them in
     # understand/extract unless there is strong issue evidence.
@@ -160,7 +173,8 @@ def score_universal_actions(ctx: IntentRequest, intent_mode: IntentMode) -> Orde
     if has_extract_signals(text):
         _add(scores, "extract_key_facts", 0.86)
 
-    if intent_mode not in {"debug", "extract"} and has_action_signals(text, visible_controls(ctx)):
+    action_signal = has_action_signals(text, visible_controls(ctx)) or has_recent_action_event(ctx) or has_form_interaction(ctx)
+    if intent_mode not in {"debug", "extract"} and action_signal:
         _add(scores, "what_should_i_do_next", 0.84)
 
     return scores
@@ -183,6 +197,35 @@ def action_from_id(action_id: str, score: float, ctx: IntentRequest) -> Suggeste
 
 
 def contextual_label(action_id: str, ctx: IntentRequest) -> str:
+    text = combined_text(ctx).lower()
+    url_title = f"{ctx.url} {ctx.title}".lower()
+    pricing_or_plans = has_pricing_or_plan_signals(url_title, text)
+    debug_page = has_debug_evidence(text, url_title)
+
+    if action_id == "explain_this" and ctx.selectedText.strip():
+        return "Explain selection"
+    if action_id == "extract_key_facts":
+        if is_legal_or_policy(url_title, text):
+            return "Extract obligations"
+        if pricing_or_plans:
+            return "Extract prices"
+        if is_docs_like(url_title, text):
+            return "Extract limits"
+    if action_id == "compare_visible_options" and pricing_or_plans:
+        return "Compare plans"
+    if action_id == "summarize_what_matters":
+        if debug_page:
+            return "Summarize issue"
+        if pricing_or_plans:
+            return "Summarize tradeoffs"
+        if is_legal_or_policy(url_title, text):
+            return "Summarize terms"
+    if action_id == "what_should_i_do_next":
+        if debug_page:
+            return "Find next fix"
+        if has_form_interaction(ctx) or has_recent_action_event(ctx):
+            return "Next step"
+
     labels = {
         "explain_this": "Explain this",
         "summarize_what_matters": "Summarize",
@@ -260,6 +303,10 @@ def has_decision_signals(url_title: str, text: str) -> bool:
     return any(term in url_title or term in text for term in terms)
 
 
+def has_pricing_or_plan_signals(url_title: str, text: str) -> bool:
+    return any(term in url_title or term in text for term in ["pricing", "plans", "billing", "per month", "/mo", "enterprise"])
+
+
 def count_option_signals(ctx: IntentRequest, text: str) -> int:
     labels = [el.text.lower() for el in ctx.elements if el.text]
     option_words = ["free", "pro", "plus", "team", "business", "enterprise", "basic", "premium", "plan", "option"]
@@ -300,6 +347,29 @@ def has_action_signals(text: str, controls: list[dict[str, str | None]]) -> bool
     cta_terms = ["submit", "buy", "start", "continue", "book", "contact", "sign up", "checkout", "configure", "save"]
     control_text = " ".join(str(control.get("text") or "") for control in controls).lower()
     return any(term in text or term in control_text for term in cta_terms)
+
+
+def has_recent_action_event(ctx: IntentRequest) -> bool:
+    cta_terms = ["submit", "buy", "start", "continue", "book", "contact", "sign up", "checkout", "configure", "save"]
+    recent = ctx.recentEvents[-10:]
+    for event in recent:
+        event_text = f"{event.type} {event.text or ''} {event.placeholder or ''} {event.tag or ''}".lower()
+        if any(term in event_text for term in cta_terms):
+            return True
+    return False
+
+
+def has_form_focus(ctx: IntentRequest) -> bool:
+    focused = ctx.focusedElement.lower()
+    form_terms = [" input", " textarea", " select", " field", " form", "email", "password", "search", "checkout"]
+    return bool(focused.strip()) and any(term in focused for term in form_terms)
+
+
+def has_form_interaction(ctx: IntentRequest) -> bool:
+    if has_form_focus(ctx):
+        return True
+    form_tags = {"input", "textarea", "select"}
+    return any((event.tag or "").lower() in form_tags for event in ctx.recentEvents[-10:])
 
 
 def visible_controls(ctx: IntentRequest) -> list[dict[str, str | None]]:

@@ -7,14 +7,17 @@ Promptless AI is a general-web assistant that predicts what kind of help the use
 Current MVP:
 
 - Chrome MV3 extension.
-- Page context capture from the content script.
+- Page context capture from the content script, with form fields represented by labels/placeholders instead of typed values.
 - Recent click, hover, scroll, selection, and focus event tracking.
 - Backend context POSTs to `http://127.0.0.1:8000/intent`.
 - Deterministic intent-mode ranking across `understand`, `decide`, `compare`, `extract`, `debug`, and `act`.
 - `traceId` returned with every intent response.
 - Strict backend action allowlist and low-risk-only filtering.
 - Compact pill renders backend suggestions.
-- Clicking a suggestion calls `/execute` and shows a compact result panel.
+- Suggestion pill explains the non-sensitive signal behind the recommendation, such as selected text, focused field, recent click, or visible page structure.
+- Suggestions use contextual labels such as `Compare plans`, `Summarize issue`, `Next step`, and `Explain selection`.
+- Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and whether cloud routing is allowed or blocked.
+- Clicking a suggestion calls `/execute` and shows a compact structured result panel tied to the selected action, redacted page context, and privacy route policy.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
 - Local privacy gateway scans browser context for secrets/PII, redacts trace context, labels sensitivity, and blocks cloud routes for secret/regulated/unknown context by default.
@@ -39,6 +42,8 @@ Universal visible actions:
 5. Select `promptless-ai/extension`.
 
 If the backend is unavailable, the extension still shows static universal suggestions.
+
+Click `Privacy` in the suggestion pill to preview the redacted page context and route decision before executing an action.
 
 ## Backend
 
@@ -91,7 +96,7 @@ Trace review:
 python -m backend.review_traces
 ```
 
-The trace review includes Prompt Avoidance Rate, acceptance/execution metrics, privacy sensitivity labels, route counts, and redaction finding kinds.
+The trace review includes Prompt Avoidance Rate, acceptance/execution metrics, and separate intent/execution privacy sensitivity labels, route counts, and redaction finding kinds.
 
 ## Development
 
@@ -105,6 +110,14 @@ Run deterministic intent fixtures:
 
 ```bash
 python -m backend.eval_intents
+```
+
+Eval fixtures may include an `expected` block for intent/action expectations; the runner exits non-zero when those expectations fail.
+
+Run extension context helper tests:
+
+```bash
+node --test extension/src/context-utils.test.js
 ```
 
 If Git reports dubious ownership for this checkout, add the repository as a safe directory:
