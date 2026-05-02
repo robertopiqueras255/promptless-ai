@@ -21,6 +21,7 @@ Current MVP:
 - Execution uses action-specific prompt templates and deterministic fallbacks optimized for the result panel: compact summaries, key-fact bullets, comparison tables, next steps, explanations, and page-grounded answers.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
+- YouTube workflow detector calls `POST /youtube/intervene`, fetches cached public captions, classifies actionable videos, and surfaces specific tutorial/recipe/coding actions instead of generic page actions.
 - Local privacy gateway scans browser context for secrets/PII, redacts trace context, labels sensitivity, and blocks cloud routes for secret/regulated/unknown context by default.
 - `POST /privacy/preview` returns redacted context plus sensitivity/route metadata for a privacy preview UI.
 - Context schema is multimodal-ready with optional focused element, viewport summary, and screenshot path fields. Screenshot capture is not implemented yet.
@@ -33,6 +34,9 @@ Universal visible actions:
 - `compare_visible_options`
 - `what_should_i_do_next`
 - `answer_from_page_context`
+- `save_tutorial_checklist`
+- `extract_code_snippets`
+- `extract_ingredients`
 
 ## Load The Extension
 
@@ -89,6 +93,14 @@ Privacy preview:
 curl -X POST http://127.0.0.1:8000/privacy/preview \
   -H 'content-type: application/json' \
   -d '{"url":"https://docs.example.com","title":"Docs","visibleText":"Email support@example.com about invoice INV-99281"}'
+```
+
+YouTube workflow intervention:
+
+```bash
+curl -X POST http://127.0.0.1:8000/youtube/intervene \
+  -H 'content-type: application/json' \
+  -d '{"url":"https://www.youtube.com/watch?v=VIDEO_ID","title":"Example tutorial","channel":"Example channel"}'
 ```
 
 Trace review:

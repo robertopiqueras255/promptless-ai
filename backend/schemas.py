@@ -104,3 +104,17 @@ class FeedbackRequest(BaseModel):
     actionId: str | None = None
     context: IntentRequest | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class YouTubeRequest(BaseModel):
+    videoId: str | None = None
+    url: str = ""
+    title: str = ""
+    channel: str = ""
+
+    model_config = {"extra": "ignore"}
+
+    @field_validator("videoId", "url", "title", "channel", mode="before")
+    @classmethod
+    def coerce_youtube_str(cls, value: Any) -> str:
+        return "" if value is None else str(value)
