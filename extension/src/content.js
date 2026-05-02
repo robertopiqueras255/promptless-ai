@@ -506,11 +506,11 @@ async function executeAction(action, context, traceId, button) {
     debug("execute response", { status: response.status, body: result });
 
     if (!response.ok) {
-      showResult(action, result?.detail || result?.result || `Execution failed with HTTP ${response.status}.`, traceId, action.id, "error", context);
+      showResult(action, result?.detail || result?.result || `Execution failed with HTTP ${response.status}.`, traceId, action.id, "error", context, result?.privacy || null);
       return;
     }
 
-    showResult(action, result?.result || "No result returned.", traceId, action.id, result?.status || "done", context);
+    showResult(action, result?.result || "No result returned.", traceId, action.id, result?.status || "done", context, result?.privacy || null);
   } catch (error) {
     debug("execute request failed", error);
     showResult(action, "Backend execution failed. Is the local server running?", traceId, action.id, "error", context);
@@ -523,7 +523,7 @@ async function executeAction(action, context, traceId, button) {
   }
 }
 
-function showResult(action, result, traceId, actionId, status = "done", context = null) {
+function showResult(action, result, traceId, actionId, status = "done", context = null, privacyMetadata = null) {
   let root = document.getElementById("promptless-ai-root");
   if (!root) {
     root = document.createElement("div");
@@ -556,7 +556,7 @@ function showResult(action, result, traceId, actionId, status = "done", context 
 
   const meta = document.createElement("div");
   meta.className = "promptless-result-meta";
-  meta.textContent = resultMetaText(context);
+  meta.textContent = resultMetaText(context, privacyMetadata, status);
 
   const description = document.createElement("div");
   description.className = "promptless-result-description";
@@ -577,7 +577,7 @@ function showResult(action, result, traceId, actionId, status = "done", context 
   privacy.addEventListener("click", () => {
     if (context) {
       void showPrivacyPreview(context, null, () => {
-        showResult(action, result, traceId, actionId, status, context);
+        showResult(action, result, traceId, actionId, status, context, privacyMetadata);
       });
     }
   });
@@ -620,11 +620,15 @@ function renderResultBody(body, result) {
   });
 }
 
-function resultMetaText(context) {
+function resultMetaText(context, privacyMetadata = null, status = "done") {
   const page = context?.title || context?.url || "current page";
   const origin = urlOrigin(context?.url);
   const source = origin ? `${page} (${origin})` : page;
-  return `Using redacted local page context from ${source}.`;
+  const routeStatus = privacyMetadata && Object.prototype.hasOwnProperty.call(privacyMetadata, "cloudAllowed")
+    ? privacyRouteStatus(privacyMetadata)
+    : null;
+  const routeText = status !== "error" && routeStatus?.label ? ` Route policy: ${routeStatus.label}.` : "";
+  return `Using redacted local page context from ${source}.${routeText}`;
 }
 
 function urlOrigin(url) {

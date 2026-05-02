@@ -86,6 +86,10 @@ def test_execute_uses_sanitized_context_and_logs_privacy(tmp_path, monkeypatch):
     )
 
     assert response.status_code == 200
+    payload = response.json()
+    assert payload["privacy"]["sensitivity"] == "secret"
+    assert payload["privacy"]["route"] == "local"
+    assert payload["privacy"]["cloudAllowed"] is False
     records = read_trace_records(trace_path)
     dumped = json.dumps(records)
     assert "hunter2" not in dumped

@@ -17,7 +17,7 @@ Current MVP:
 - Suggestion pill explains the non-sensitive signal behind the recommendation, such as selected text, focused field, recent click, or visible page structure.
 - Suggestions use contextual labels such as `Compare plans`, `Summarize issue`, `Next step`, and `Explain selection`.
 - Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and whether cloud routing is allowed or blocked.
-- Clicking a suggestion calls `/execute` and shows a compact structured result panel tied to the selected action and redacted page context.
+- Clicking a suggestion calls `/execute` and shows a compact structured result panel tied to the selected action, redacted page context, and privacy route policy.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
 - Local privacy gateway scans browser context for secrets/PII, redacts trace context, labels sensitivity, and blocks cloud routes for secret/regulated/unknown context by default.
