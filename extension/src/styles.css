@@ -44,6 +44,7 @@
 }
 
 .promptless-action,
+.promptless-privacy-button,
 .promptless-dismiss {
   appearance: none;
   border: 0;
@@ -63,11 +64,31 @@
   padding: 0 10px;
 }
 
+.promptless-privacy-button {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 650;
+  min-height: 30px;
+  padding: 0 9px;
+}
+
 .promptless-action:hover {
   background: #e5e7eb;
 }
 
+.promptless-privacy-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
 .promptless-action:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.promptless-privacy-button:disabled {
   cursor: default;
   opacity: 0.72;
 }
@@ -86,6 +107,118 @@
 .promptless-dismiss:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
+}
+
+.promptless-privacy {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.26);
+  color: #f9fafb;
+  max-height: min(520px, calc(100vh - 32px));
+  overflow: hidden;
+  width: min(680px, calc(100vw - 24px));
+}
+
+.promptless-privacy-header {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.promptless-privacy-title {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.promptless-route {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.promptless-route-local {
+  background: rgba(34, 197, 94, 0.15);
+  color: #bbf7d0;
+}
+
+.promptless-route-cloud {
+  background: rgba(59, 130, 246, 0.16);
+  color: #bfdbfe;
+}
+
+.promptless-privacy-body {
+  display: grid;
+  gap: 8px;
+  max-height: 390px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.promptless-privacy-metric {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(110px, 0.34fr) minmax(0, 1fr);
+}
+
+.promptless-privacy-metric span {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.promptless-privacy-metric strong {
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.promptless-privacy-error {
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.promptless-context-preview {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+.promptless-context-title {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.promptless-context-text {
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  max-height: 170px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .promptless-result {
@@ -224,9 +357,17 @@
     flex-wrap: wrap;
   }
 
+  .promptless-privacy-button {
+    align-self: flex-start;
+  }
+
   .promptless-dismiss {
     position: absolute;
     right: 8px;
     top: 6px;
+  }
+
+  .promptless-privacy-metric {
+    grid-template-columns: 1fr;
   }
 }

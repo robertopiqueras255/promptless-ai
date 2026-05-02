@@ -14,6 +14,7 @@ Current MVP:
 - `traceId` returned with every intent response.
 - Strict backend action allowlist and low-risk-only filtering.
 - Compact pill renders backend suggestions.
+- Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and local/cloud route status.
 - Clicking a suggestion calls `/execute` and shows a compact result panel.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
@@ -39,6 +40,8 @@ Universal visible actions:
 5. Select `promptless-ai/extension`.
 
 If the backend is unavailable, the extension still shows static universal suggestions.
+
+Click `Privacy` in the suggestion pill to preview the redacted page context and route decision before executing an action.
 
 ## Backend
 

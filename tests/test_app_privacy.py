@@ -32,6 +32,32 @@ def test_intent_trace_stores_redacted_context(tmp_path, monkeypatch):
     assert intent_record["privacy"]["route"] == "local"
 
 
+def test_privacy_preview_returns_redacted_context_and_route():
+    client = TestClient(app)
+    secret = "sk-" + "a" * 24
+
+    response = client.post(
+        "/privacy/preview",
+        json={
+            "url": "https://docs.example.com/api/auth",
+            "title": "API Auth",
+            "visibleText": f"Email ops@example.com and keep API key {secret} local.",
+            "recentEvents": [{"type": "selection", "text": f"Use {secret}"}],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    dumped = json.dumps(payload)
+    assert secret not in dumped
+    assert "ops@example.com" not in dumped
+    assert payload["redactionCount"] >= 2
+    assert payload["route"] == "local"
+    assert not payload["cloudAllowed"]
+    assert "[SECRET:OPENAI_KEY_1]" in dumped
+    assert "[EMAIL_1]" in dumped
+
+
 def test_execute_uses_sanitized_context_and_logs_privacy(tmp_path, monkeypatch):
     trace_path = tmp_path / "traces.jsonl"
     monkeypatch.setattr(storage, "TRACE_PATH", trace_path)
