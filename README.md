@@ -1,148 +1,150 @@
-# Promptless AI MVP
+# Promptless AI
 
-Promptless AI is a general-web assistant that predicts what kind of help the user needs on the current page and offers universal actions before the user prompts.
+A proactive context engine that watches what you're doing and surfaces the right help before you have to ask. Built for the gap between passive browsing and active prompting.
 
-## Current Status
+**The core idea:** your browser copilot should know when you're stuck — on a tutorial, a recipe, an OAuth setup, a pricing page — and offer the exact next step without being asked. And when you do ask Hermes, he already knows what you were just watching or reading.
 
-Current MVP:
+## How it works
 
-- Chrome MV3 extension.
-- Page context capture from the content script, with form fields represented by labels/placeholders instead of typed values.
-- Recent click, hover, scroll, selection, and focus event tracking.
-- Backend context POSTs to `http://127.0.0.1:8000/intent`.
-- Deterministic intent-mode ranking across `understand`, `decide`, `compare`, `extract`, `debug`, and `act`.
-- `traceId` returned with every intent response.
-- Strict backend action allowlist and low-risk-only filtering.
-- Compact pill renders backend suggestions.
-- Suggestion pill explains the non-sensitive signal behind the recommendation, such as selected text, focused field, recent click, or visible page structure.
-- Suggestions use contextual labels such as `Compare plans`, `Summarize issue`, `Next step`, and `Explain selection`.
-- Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and whether cloud routing is allowed or blocked.
-- Clicking a suggestion calls `/execute` and shows a compact structured result panel tied to the selected action, redacted page context, and privacy route policy.
-- Execution uses action-specific prompt templates and deterministic fallbacks optimized for the result panel: compact summaries, key-fact bullets, comparison tables, next steps, explanations, and page-grounded answers.
-- Feedback events post to `/feedback` and append to `data/traces.jsonl`.
-- `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
-- YouTube workflow detector calls `POST /youtube/intervene`, fetches cached public captions, classifies actionable videos, and surfaces specific tutorial/recipe/coding actions instead of generic page actions.
-- Local privacy gateway scans browser context for secrets/PII, redacts trace context, labels sensitivity, and blocks cloud routes for secret/regulated/unknown context by default.
-- `POST /privacy/preview` returns redacted context plus sensitivity/route metadata for a privacy preview UI.
-- Context schema is multimodal-ready with optional focused element, viewport summary, and screenshot path fields. Screenshot capture is not implemented yet.
+```
+You open a YouTube tutorial / GitHub issue / pricing page / form
+    ↓
+Extension detects the workflow type
+    ↓
+Backend fetches relevant context (transcript, page state, form fields)
+    ↓
+System decides: intervention or passive watch?
+    ↓
+If actionable → surface specific suggestion card
+If passive → store in memory for later Hermes context
+```
 
-Universal visible actions:
+## Current workflows
 
-- `explain_this`
-- `summarize_what_matters`
-- `extract_key_facts`
-- `compare_visible_options`
-- `what_should_i_do_next`
-- `answer_from_page_context`
-- `save_tutorial_checklist`
-- `extract_code_snippets`
-- `extract_ingredients`
+### YouTube → Actionable video detection
 
-## Load The Extension
+When you open a YouTube video, Promptless fetches the public captions and classifies it:
 
-1. Open Chrome or Chromium.
-2. Go to `chrome://extensions`.
-3. Enable Developer mode.
-4. Click "Load unpacked".
-5. Select `promptless-ai/extension`.
+- **ACTIONABLE** — tutorial, recipe, coding guide, how-to
+  - Surfaces: "Save checklist", "Extract code", "Extract ingredients"
+  - Stores: title, channel, transcript preview, extracted content
+- **LEISURE** — vlog, reaction, entertainment
+  - No suggestion shown
+  - Stored in memory for later reference
 
-If the backend is unavailable, the extension still shows static universal suggestions.
+### Web workflows
 
-Click `Privacy` in the suggestion pill to preview the redacted page context and route decision before executing an action.
+- **GitHub issues** — detect issue state, labels, assignees; suggest debug actions
+- **OAuth/setup forms** — detect missing fields (redirect URI, client ID, scope)
+- **Pricing pages** — compare plans, estimate usage
+
+### Hermes memory integration
+
+Everything Promptless sees gets written to `data/promptless_memory.jsonl`. When you prompt Hermes with something like:
+
+> "I was watching a video about Codex workflow last week"
+
+Hermes reads that memory and already knows what you watched, what was extracted, and can answer without you re-explaining.
+
+## What's included
+
+- **Chrome MV3 extension** — content script captures page context (title, URL, visible text, form fields, events)
+- **Backend API** — intent ranking, action execution, YouTube workflow, privacy gateway
+- **Local privacy gateway** — scans for secrets/PII, redacts traces, blocks cloud routing by default
+- **Hermes execution** — routes to local Hermes CLI with deterministic fallback
+- **Trace logging** — `data/traces.jsonl` for quality metrics
+
+## Actions
+
+**Web (universal):**
+
+- `explain_this` — explain selected/focused concept
+- `summarize_what_matters` — summarize key details for decision/action
+- `extract_key_facts` — extract numbers, limits, dates, requirements
+- `compare_visible_options` — compare plans/products/choices
+- `what_should_i_do_next` — suggest next steps from page state
+- `answer_from_page_context` — answer from captured context only
+
+**YouTube:**
+
+- `save_tutorial_checklist` — convert transcript to step checklist
+- `extract_code_snippets` — pull commands from coding tutorials
+- `extract_ingredients` — parse recipe transcripts
+
+## Load the extension
+
+1. Open Chrome or Chromium
+2. Go to `chrome://extensions`
+3. Enable Developer mode
+4. Click "Load unpacked"
+5. Select `promptless-ai/extension`
+
+Click `Privacy` in the suggestion pill to preview the redacted context and route decision before executing.
 
 ## Backend
 
-From repo root:
-
 ```bash
-python -m pip install -r backend/requirements.txt
+pip install -r backend/requirements.txt
 python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Hermes execution defaults to:
+Environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROMPTLESS_HERMES_ENABLED` | `1` | Set `0` to force deterministic fallback |
+| `PROMPTLESS_HERMES_TIMEOUT_SECONDS` | `45` | Hermes execution timeout |
+| `PROMPTLESS_MAX_RESULT_CHARS` | `5000` | Panel result length limit |
 
 ```bash
-/home/alan/.hermes/hermes-agent/.venv/bin/python -m hermes_cli.main chat --quiet
-```
-
-Set `PROMPTLESS_HERMES_ENABLED=0` to force deterministic fallback execution during local debugging.
-Set `PROMPTLESS_HERMES_TIMEOUT_SECONDS` to tune the execution timeout, default `45`.
-Set `PROMPTLESS_MAX_RESULT_CHARS` to tune panel result length, default `5000`.
-
-On Windows PowerShell:
-
-```powershell
-$env:PROMPTLESS_HERMES_ENABLED = "0"
-```
-
-On macOS/Linux:
-
-```bash
-export PROMPTLESS_HERMES_ENABLED=0
-```
-
-Health check:
-
-```bash
+# Health check
 curl http://127.0.0.1:8000/health
-```
 
-Privacy preview:
-
-```bash
-curl -X POST http://127.0.0.1:8000/privacy/preview \
-  -H 'content-type: application/json' \
-  -d '{"url":"https://docs.example.com","title":"Docs","visibleText":"Email support@example.com about invoice INV-99281"}'
-```
-
-YouTube workflow intervention:
-
-```bash
+# YouTube workflow
 curl -X POST http://127.0.0.1:8000/youtube/intervene \
   -H 'content-type: application/json' \
-  -d '{"url":"https://www.youtube.com/watch?v=VIDEO_ID","title":"Example tutorial","channel":"Example channel"}'
-```
+  -d '{"url":"https://www.youtube.com/watch?v=VIDEO_ID","title":"Tutorial","channel":"Channel"}'
 
-Trace review:
-
-```bash
+# Trace review
 python -m backend.review_traces
 ```
 
-The trace review includes Prompt Avoidance Rate, acceptance/execution metrics, separate intent/execution privacy sensitivity labels, route counts, redaction finding kinds, and a Promptless AI Quality Report with best/noisy actions and pages with most dismissals.
-
 ## Development
 
-Run backend tests:
-
 ```bash
+# All tests
 python -m pytest
-```
 
-Run deterministic intent fixtures:
-
-```bash
+# Intent ranking fixtures
 python -m backend.eval_intents
-```
 
-Eval fixtures may include an `expected` block for intent/action expectations; the runner exits non-zero when those expectations fail.
-
-Run extension context helper tests:
-
-```bash
+# Extension context helpers
 node --test extension/src/context-utils.test.js
 ```
 
-Execution quality tests cover the action-specific Hermes prompt contracts and deterministic fallback panel outputs:
+## Architecture
 
-```bash
-python -m pytest tests/test_execution_quality.py
+```
+extension/src/
+├── content.js       # Captures page context, renders suggestion pill
+└── content.ts       # TypeScript source
+
+backend/
+├── app.py           # FastAPI routes (/intent, /execute, /youtube/intervene)
+├── intent.py        # Intent ranking logic
+├── hermes_client.py # Hermes execution + deterministic fallbacks
+├── youtube.py       # YouTube transcript fetch + classification
+├── privacy.py       # Privacy gateway (redaction, routing)
+├── storage.py       # JSONL trace logging
+└── review_traces.py # Quality report generator
 ```
 
-If Git reports dubious ownership for this checkout, add the repository as a safe directory:
+## Where it's headed
 
-```bash
-git config --global --add safe.directory "$(pwd)"
-```
+The product is shifting from generic actions toward **workflow-specific interventions** — the system should recognize what you're trying to do and offer exactly what's missing. The YouTube workflow is the template: detect → extract → store in memory → surface specific action.
 
-See `CONTRIBUTING.md` for the issue, branch, pull request, eval, and privacy workflow.
+Coming next:
+
+- GitHub issue workflow (debug actions, PR checklists)
+- OAuth/setup workflow (missing field detection, config templates)
+- Hermes memory skill (so you can ask "what was that video about" and get a real answer)
