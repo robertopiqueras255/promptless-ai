@@ -60,3 +60,39 @@ def test_github_issue_with_error_signals_prioritizes_debug_actions():
         "extract_key_facts",
         "what_should_i_do_next",
     ]
+
+
+def test_focused_checkout_form_prioritizes_next_action():
+    ctx = IntentRequest(
+        url="https://shop.example.com/checkout",
+        title="Checkout",
+        focusedElement="INPUT email Email address email field input",
+        visibleText="Shipping details. Enter your email address and continue to delivery options.",
+        elements=[
+            PageElement(tag="INPUT", text="email Email address email field input"),
+            PageElement(tag="BUTTON", text="Continue"),
+        ],
+        recentEvents=[RecentEvent(type="focus", placeholder="Email address", tag="INPUT")],
+    )
+
+    intent, confidence, actions = rank_actions(ctx)
+
+    assert confidence >= 0.85
+    assert "next action" in intent
+    assert actions[0].id == "what_should_i_do_next"
+
+
+def test_recent_configure_click_boosts_action_help():
+    ctx = IntentRequest(
+        url="https://admin.example.com/integrations/slack",
+        title="Slack integration settings",
+        visibleText="Configure Slack notifications. Save changes after selecting the workspace and channel.",
+        elements=[
+            PageElement(tag="SELECT", text="workspace select"),
+            PageElement(tag="SELECT", text="channel select"),
+            PageElement(tag="BUTTON", text="Save changes"),
+        ],
+        recentEvents=[RecentEvent(type="click", text="Configure", tag="BUTTON")],
+    )
+
+    assert action_ids(ctx)[0] == "what_should_i_do_next"

@@ -83,9 +83,19 @@ def infer_intent_mode(ctx: IntentRequest) -> tuple[IntentMode, float]:
         "act": 0.50,
     }
 
-    if ctx.selectedText.strip() or ctx.focusedElement.strip():
+    form_focus = has_form_focus(ctx)
+    action_signal = has_action_signals(text, controls) or has_recent_action_event(ctx)
+
+    if ctx.selectedText.strip():
         mode_scores["understand"] += 0.24
         mode_scores["extract"] += 0.10
+    elif ctx.focusedElement.strip():
+        if form_focus:
+            mode_scores["act"] += 0.24
+            mode_scores["decide"] += 0.08
+        else:
+            mode_scores["understand"] += 0.18
+            mode_scores["extract"] += 0.06
 
     if is_docs_like(url_title, text):
         mode_scores["understand"] += 0.20
@@ -128,9 +138,12 @@ def infer_intent_mode(ctx: IntentRequest) -> tuple[IntentMode, float]:
         mode_scores["extract"] = min(mode_scores["extract"], 0.82)
         mode_scores["compare"] = min(mode_scores["compare"], 0.56)
 
-    if has_action_signals(text, controls):
+    if action_signal:
         mode_scores["act"] += 0.22
         mode_scores["decide"] += 0.08
+
+    if has_form_interaction(ctx):
+        mode_scores["act"] += 0.16
 
     # Auth/API/reference docs often mention errors and responses. Keep them in
     # understand/extract unless there is strong issue evidence.
@@ -160,7 +173,8 @@ def score_universal_actions(ctx: IntentRequest, intent_mode: IntentMode) -> Orde
     if has_extract_signals(text):
         _add(scores, "extract_key_facts", 0.86)
 
-    if intent_mode not in {"debug", "extract"} and has_action_signals(text, visible_controls(ctx)):
+    action_signal = has_action_signals(text, visible_controls(ctx)) or has_recent_action_event(ctx) or has_form_interaction(ctx)
+    if intent_mode not in {"debug", "extract"} and action_signal:
         _add(scores, "what_should_i_do_next", 0.84)
 
     return scores
@@ -300,6 +314,31 @@ def has_action_signals(text: str, controls: list[dict[str, str | None]]) -> bool
     cta_terms = ["submit", "buy", "start", "continue", "book", "contact", "sign up", "checkout", "configure", "save"]
     control_text = " ".join(str(control.get("text") or "") for control in controls).lower()
     return any(term in text or term in control_text for term in cta_terms)
+
+
+def has_recent_action_event(ctx: IntentRequest) -> bool:
+    cta_terms = ["submit", "buy", "start", "continue", "book", "contact", "sign up", "checkout", "configure", "save"]
+    recent = ctx.recentEvents[-10:]
+    for event in recent:
+        event_text = f"{event.type} {event.text or ''} {event.placeholder or ''} {event.tag or ''}".lower()
+        if any(term in event_text for term in cta_terms):
+            return True
+    return False
+
+
+def has_form_focus(ctx: IntentRequest) -> bool:
+    focused = ctx.focusedElement.lower()
+    form_terms = [" input", " textarea", " select", " field", " form", "email", "password", "search", "checkout"]
+    return bool(focused.strip()) and any(term in focused for term in form_terms)
+
+
+def has_form_interaction(ctx: IntentRequest) -> bool:
+    if has_form_focus(ctx):
+        return True
+    form_tags = {"input", "textarea", "select"}
+    if any((event.tag or "").lower() in form_tags for event in ctx.recentEvents[-10:]):
+        return True
+    return any((element.tag or "").lower() in form_tags for element in ctx.elements[:80])
 
 
 def visible_controls(ctx: IntentRequest) -> list[dict[str, str | None]]:
