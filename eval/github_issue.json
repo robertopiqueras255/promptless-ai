@@ -9,5 +9,10 @@
   ],
   "recentEvents": [
     {"type": "hover", "text": "Stack trace", "tag": "DIV", "ts": 1}
-  ]
+  ],
+  "expected": {
+    "intentIncludes": "debug",
+    "firstActionId": "summarize_what_matters",
+    "firstActionLabel": "Summarize issue"
+  }
 }

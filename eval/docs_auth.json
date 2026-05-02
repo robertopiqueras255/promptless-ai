@@ -9,5 +9,9 @@
   ],
   "recentEvents": [
     {"type": "hover", "text": "Authentication", "tag": "A", "ts": 1}
-  ]
+  ],
+  "expected": {
+    "intentIncludes": "understand",
+    "firstActionId": "explain_this"
+  }
 }

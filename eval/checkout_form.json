@@ -1,0 +1,21 @@
+{
+  "url": "https://shop.example.com/checkout",
+  "title": "Checkout",
+  "selectedText": "",
+  "focusedElement": "INPUT email Email address email field input",
+  "viewportSummary": "Checkout | Contact | Delivery | Payment",
+  "visibleText": "Checkout\nEnter your contact information, choose delivery, and continue to payment. Shipping options are calculated after you provide an email address and ZIP code.",
+  "elements": [
+    {"id": 1, "tag": "INPUT", "text": "email Email address email field input"},
+    {"id": 2, "tag": "INPUT", "text": "zip ZIP code text field input"},
+    {"id": 3, "tag": "BUTTON", "text": "Continue to delivery"}
+  ],
+  "recentEvents": [
+    {"type": "focus", "placeholder": "Email address", "tag": "INPUT", "ts": 1}
+  ],
+  "expected": {
+    "intentIncludes": "next action",
+    "firstActionId": "what_should_i_do_next",
+    "firstActionLabel": "Next step"
+  }
+}

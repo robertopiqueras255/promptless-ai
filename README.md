@@ -112,6 +112,8 @@ Run deterministic intent fixtures:
 python -m backend.eval_intents
 ```
 
+Eval fixtures may include an `expected` block for intent/action expectations; the runner exits non-zero when those expectations fail.
+
 Run extension context helper tests:
 
 ```bash
