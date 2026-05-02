@@ -46,7 +46,16 @@ const staticActions = [
   }
 ];
 
-const { privacyRouteStatus, resultMetaText, resultParts, suggestionBasis, textForElement } = globalThis.PromptlessContext;
+const {
+  formatFindingKinds,
+  privacyRouteStatus,
+  resultMetaText,
+  resultParts,
+  routeDescription,
+  suggestionBasis,
+  summarizePreviewContext,
+  textForElement
+} = globalThis.PromptlessContext;
 
 function pushEvent(event) {
   recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
@@ -436,54 +445,6 @@ function makePrivacyMetric(label, value) {
 
   item.append(name, detail);
   return item;
-}
-
-function routeDescription(preview) {
-  if (!preview) return "unknown";
-  const route = preview.route || "unknown";
-  const reason = preview.routeReason || "";
-  if (!reason) return route;
-  return `${route}: ${reason}`;
-}
-
-function formatFindingKinds(kinds) {
-  if (!Array.isArray(kinds) || kinds.length === 0) return "none";
-  return kinds.join(", ");
-}
-
-function summarizePreviewContext(context) {
-  const parts = [];
-  const fields = [
-    ["Title", context.title],
-    ["URL", context.url],
-    ["Selection", context.selectedText],
-    ["Focused element", context.focusedElement],
-    ["Viewport", context.viewportSummary],
-    ["Visible text", context.visibleText]
-  ];
-
-  fields.forEach(([label, value]) => {
-    const text = String(value || "").trim();
-    if (!text) return;
-    parts.push(`${label}: ${compactPreviewText(text)}`);
-  });
-
-  if (Array.isArray(context.recentEvents) && context.recentEvents.length) {
-    const events = context.recentEvents
-      .slice(-5)
-      .map((event) => [event.type, event.text || event.placeholder || event.tag].filter(Boolean).join(": "))
-      .filter(Boolean)
-      .join("; ");
-    if (events) parts.push(`Recent events: ${compactPreviewText(events)}`);
-  }
-
-  return parts.join("\n\n") || "No page context was captured.";
-}
-
-function compactPreviewText(text, limit = 520) {
-  const compact = text.replace(/\s+/g, " ").trim();
-  if (compact.length <= limit) return compact;
-  return `${compact.slice(0, limit - 12).trim()} [truncated]`;
 }
 
 async function executeAction(action, context, traceId, button) {

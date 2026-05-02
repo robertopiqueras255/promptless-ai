@@ -1,7 +1,17 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { privacyRouteStatus, resultMetaText, resultParts, suggestionBasis, textForElement } = require("./context-utils.js");
+const {
+  compactPreviewText,
+  formatFindingKinds,
+  privacyRouteStatus,
+  resultMetaText,
+  resultParts,
+  routeDescription,
+  suggestionBasis,
+  summarizePreviewContext,
+  textForElement
+} = require("./context-utils.js");
 
 function element({ tagName, textContent = "", value = "", attrs = {} }) {
   return {
@@ -140,4 +150,51 @@ test("result metadata omits route policy for execution errors", () => {
     ),
     "Using redacted local page context from Customer dashboard (crm.example.com)."
   );
+});
+
+test("route description includes route reason when present", () => {
+  assert.equal(
+    routeDescription({ route: "local", routeReason: "secret context requires local execution" }),
+    "local: secret context requires local execution"
+  );
+});
+
+test("finding kinds format empty and populated lists", () => {
+  assert.equal(formatFindingKinds([]), "none");
+  assert.equal(formatFindingKinds(["email", "password"]), "email, password");
+});
+
+test("preview text is compacted and bounded", () => {
+  const compact = compactPreviewText(`First\n\n${"x".repeat(620)}`, 40);
+
+  assert.equal(compact.length <= 40, true);
+  assert.equal(compact.includes("\n"), false);
+  assert.equal(compact.endsWith("[truncated]"), true);
+});
+
+test("preview context summary includes recent event signals", () => {
+  assert.equal(
+    summarizePreviewContext({
+      title: "Checkout",
+      url: "https://shop.example.com/checkout",
+      focusedElement: "email field input",
+      visibleText: "Complete your order",
+      recentEvents: [
+        { type: "scroll" },
+        { type: "focus", placeholder: "Email address", tag: "INPUT" },
+        { type: "click", text: "Continue", tag: "BUTTON" }
+      ]
+    }),
+    [
+      "Title: Checkout",
+      "URL: https://shop.example.com/checkout",
+      "Focused element: email field input",
+      "Visible text: Complete your order",
+      "Recent events: scroll; focus: Email address; click: Continue"
+    ].join("\n\n")
+  );
+});
+
+test("preview context summary handles empty context", () => {
+  assert.equal(summarizePreviewContext({}), "No page context was captured.");
 });
