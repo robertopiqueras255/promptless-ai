@@ -110,6 +110,12 @@ Run deterministic intent fixtures:
 python -m backend.eval_intents
 ```
 
+Run extension context helper tests:
+
+```bash
+node --test extension/src/context-utils.test.js
+```
+
 If Git reports dubious ownership for this checkout, add the repository as a safe directory:
 
 ```bash
