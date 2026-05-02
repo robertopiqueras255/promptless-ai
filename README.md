@@ -15,7 +15,7 @@ Current MVP:
 - Strict backend action allowlist and low-risk-only filtering.
 - Compact pill renders backend suggestions.
 - Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and local/cloud route status.
-- Clicking a suggestion calls `/execute` and shows a compact result panel.
+- Clicking a suggestion calls `/execute` and shows a compact result panel tied to the selected action and redacted page context.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
 - Local privacy gateway scans browser context for secrets/PII, redacts trace context, labels sensitivity, and blocks cloud routes for secret/regulated/unknown context by default.
@@ -113,7 +113,7 @@ python -m backend.eval_intents
 If Git reports dubious ownership for this checkout, add the repository as a safe directory:
 
 ```bash
-git config --global --add safe.directory C:/Users/jpb20/promptless-ai
+git config --global --add safe.directory "$(pwd)"
 ```
 
 See `CONTRIBUTING.md` for the issue, branch, pull request, eval, and privacy workflow.

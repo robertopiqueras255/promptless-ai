@@ -70,10 +70,18 @@ Run the backend:
 python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-During local debugging, force deterministic execution fallback instead of Hermes:
+During local debugging, force deterministic execution fallback instead of Hermes.
+
+On Windows CMD:
 
 ```bash
 set PROMPTLESS_HERMES_ENABLED=0
+```
+
+On PowerShell:
+
+```powershell
+$env:PROMPTLESS_HERMES_ENABLED = "0"
 ```
 
 On macOS/Linux:

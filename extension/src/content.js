@@ -297,7 +297,7 @@ async function postFeedback(event, traceId, actionId, context = null) {
   }
 }
 
-async function showPrivacyPreview(context, triggerButton = null) {
+async function showPrivacyPreview(context, triggerButton = null, onClose = null) {
   if (triggerButton) {
     triggerButton.disabled = true;
     triggerButton.textContent = "Checking...";
@@ -318,14 +318,14 @@ async function showPrivacyPreview(context, triggerButton = null) {
     }
 
     if (!response.ok) {
-      showPrivacyPanel({ error: preview?.detail || preview?.error || `Privacy preview failed with HTTP ${response.status}.` });
+      showPrivacyPanel({ error: preview?.detail || preview?.error || `Privacy preview failed with HTTP ${response.status}.` }, onClose);
       return;
     }
 
-    showPrivacyPanel(preview || {});
+    showPrivacyPanel(preview || {}, onClose);
   } catch (error) {
     debug("privacy preview failed", error);
-    showPrivacyPanel({ error: "Privacy preview unavailable. Is the local backend running?" });
+    showPrivacyPanel({ error: "Privacy preview unavailable. Is the local backend running?" }, onClose);
   } finally {
     if (triggerButton) {
       triggerButton.disabled = false;
@@ -334,7 +334,7 @@ async function showPrivacyPreview(context, triggerButton = null) {
   }
 }
 
-function showPrivacyPanel(preview) {
+function showPrivacyPanel(preview, onClose = null) {
   let root = document.getElementById("promptless-ai-root");
   if (!root) {
     root = document.createElement("div");
@@ -402,7 +402,9 @@ function showPrivacyPanel(preview) {
   close.textContent = "Close";
   close.addEventListener("click", () => {
     resultVisible = false;
-    if (lastSuggestionActions.length && lastSuggestionContext) {
+    if (typeof onClose === "function") {
+      onClose();
+    } else if (lastSuggestionActions.length && lastSuggestionContext) {
       renderSuggestions(lastSuggestionIntent, lastSuggestionActions, lastSuggestionContext, lastSuggestionTraceId);
     } else {
       hideSuggestions({ force: true });
@@ -496,14 +498,14 @@ async function executeAction(action, context, traceId, button) {
     debug("execute response", { status: response.status, body: result });
 
     if (!response.ok) {
-      showResult(action.label, result?.detail || result?.result || `Execution failed with HTTP ${response.status}.`, traceId, action.id, "error");
+      showResult(action, result?.detail || result?.result || `Execution failed with HTTP ${response.status}.`, traceId, action.id, "error", context);
       return;
     }
 
-    showResult(action.label, result?.result || "No result returned.", traceId, action.id, result?.status || "done");
+    showResult(action, result?.result || "No result returned.", traceId, action.id, result?.status || "done", context);
   } catch (error) {
     debug("execute request failed", error);
-    showResult(action.label, "Backend execution failed. Is the local server running?", traceId, action.id, "error");
+    showResult(action, "Backend execution failed. Is the local server running?", traceId, action.id, "error", context);
   } finally {
     activeExecution = false;
     if (button) {
@@ -513,7 +515,7 @@ async function executeAction(action, context, traceId, button) {
   }
 }
 
-function showResult(label, result, traceId, actionId, status = "done") {
+function showResult(action, result, traceId, actionId, status = "done", context = null) {
   let root = document.getElementById("promptless-ai-root");
   if (!root) {
     root = document.createElement("div");
@@ -528,9 +530,31 @@ function showResult(label, result, traceId, actionId, status = "done") {
   const panel = document.createElement("div");
   panel.className = status === "error" ? "promptless-result promptless-result-error" : "promptless-result";
 
+  const header = document.createElement("div");
+  header.className = "promptless-result-header";
+
+  const heading = document.createElement("div");
+  heading.className = "promptless-result-heading";
+
   const title = document.createElement("div");
   title.className = "promptless-result-title";
-  title.textContent = status === "error" ? `${label} failed` : label;
+  title.textContent = status === "error" ? `${action.label} failed` : action.label;
+
+  const badge = document.createElement("div");
+  badge.className = status === "error" ? "promptless-result-badge promptless-result-badge-error" : "promptless-result-badge";
+  badge.textContent = status === "error" ? "Error" : "Done";
+
+  heading.append(title, badge);
+
+  const meta = document.createElement("div");
+  meta.className = "promptless-result-meta";
+  meta.textContent = resultMetaText(context);
+
+  const description = document.createElement("div");
+  description.className = "promptless-result-description";
+  description.textContent = action.description || "Result generated from the current page context.";
+
+  header.append(heading, meta, description);
 
   const body = document.createElement("pre");
   body.className = "promptless-result-body";
@@ -538,6 +562,18 @@ function showResult(label, result, traceId, actionId, status = "done") {
 
   const controls = document.createElement("div");
   controls.className = "promptless-result-controls";
+
+  const privacy = document.createElement("button");
+  privacy.type = "button";
+  privacy.textContent = "Privacy";
+  privacy.addEventListener("click", () => {
+    if (context) {
+      void showPrivacyPreview(context, null, () => {
+        showResult(action, result, traceId, actionId, status, context);
+      });
+    }
+  });
+  privacy.disabled = !context;
 
   const copy = document.createElement("button");
   copy.type = "button";
@@ -562,9 +598,25 @@ function showResult(label, result, traceId, actionId, status = "done") {
     hideSuggestions({ force: true });
   });
 
-  controls.append(copy, good, bad, close);
-  panel.append(title, body, controls);
+  controls.append(privacy, copy, good, bad, close);
+  panel.append(header, body, controls);
   root.appendChild(panel);
+}
+
+function resultMetaText(context) {
+  const page = context?.title || context?.url || "current page";
+  const origin = urlOrigin(context?.url);
+  const source = origin ? `${page} (${origin})` : page;
+  return `Using redacted local page context from ${source}.`;
+}
+
+function urlOrigin(url) {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 document.addEventListener("click", (event) => {
