@@ -44,6 +44,20 @@
     ].join("\u0000");
   }
 
+  function contextSignature(context) {
+    const recent = Array.isArray(context?.recentEvents) ? context.recentEvents : [];
+    const lastMeaningfulEvent = [...recent].reverse().find((event) => event?.type && event.type !== "scroll");
+    return [
+      context?.url || "",
+      context?.title || "",
+      String(context?.selectedText || "").slice(0, 240),
+      String(context?.focusedElement || "").slice(0, 240),
+      String(context?.viewportSummary || "").slice(0, 500),
+      lastMeaningfulEvent ? eventSignature(lastMeaningfulEvent) : "",
+      String(context?.visibleText || "").slice(0, 1200)
+    ].join("|");
+  }
+
   function privacyRouteStatus(preview) {
     if (preview?.error) {
       return { className: "promptless-route promptless-route-local", label: "Unavailable" };
@@ -172,6 +186,7 @@
   const api = {
     appendRecentEvent,
     compactPreviewText,
+    contextSignature,
     eventSignature,
     formatFindingKinds,
     privacyRouteStatus,

@@ -4,6 +4,7 @@ const test = require("node:test");
 const {
   appendRecentEvent,
   compactPreviewText,
+  contextSignature,
   formatFindingKinds,
   privacyRouteStatus,
   resultMetaText,
@@ -102,6 +103,48 @@ test("recent events preserve distinct consecutive signals and enforce limit", ()
       { type: "hover", text: "Pro", tag: "BUTTON", ts: 2 },
       { type: "focus", placeholder: "Email", tag: "INPUT", ts: 3 }
     ]
+  );
+});
+
+test("context signature changes for focused form and stable recent interactions", () => {
+  const base = {
+    url: "https://shop.example.com/checkout",
+    title: "Checkout",
+    selectedText: "",
+    focusedElement: "",
+    viewportSummary: "Checkout | Email | Continue",
+    visibleText: "Complete your order",
+    recentEvents: []
+  };
+
+  const focused = {
+    ...base,
+    focusedElement: "INPUT email Email address email field input",
+    recentEvents: [{ type: "focus", placeholder: "Email address", tag: "INPUT", ts: 100 }]
+  };
+  const sameFocusedLater = {
+    ...focused,
+    recentEvents: [{ type: "focus", placeholder: "Email address", tag: "INPUT", ts: 250 }]
+  };
+
+  assert.notEqual(contextSignature(base), contextSignature(focused));
+  assert.equal(contextSignature(focused), contextSignature(sameFocusedLater));
+});
+
+test("context signature ignores scroll-only timestamp churn", () => {
+  const base = {
+    url: "https://docs.example.com",
+    title: "Docs",
+    selectedText: "",
+    focusedElement: "",
+    viewportSummary: "Docs | Install",
+    visibleText: "Install the CLI",
+    recentEvents: [{ type: "scroll", y: 400, ts: 100 }]
+  };
+
+  assert.equal(
+    contextSignature(base),
+    contextSignature({ ...base, recentEvents: [{ type: "scroll", y: 900, ts: 250 }] })
   );
 });
 

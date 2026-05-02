@@ -49,6 +49,7 @@ const staticActions = [
 const {
   appendRecentEvent,
   formatFindingKinds,
+  contextSignature,
   privacyRouteStatus,
   resultMetaText,
   resultParts,
@@ -108,15 +109,6 @@ function buildViewportSummary() {
     .map((el) => (el.textContent || "").trim())
     .filter(Boolean);
   return [document.title, ...headings].join(" | ").slice(0, 1200);
-}
-
-function contextSignature(context) {
-  return [
-    context.url,
-    context.title,
-    context.selectedText.slice(0, 240),
-    context.visibleText.slice(0, 1200)
-  ].join("|");
 }
 
 function ensureTraceId(traceId) {
