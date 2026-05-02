@@ -18,6 +18,7 @@ Current MVP:
 - Suggestions use contextual labels such as `Compare plans`, `Summarize issue`, `Next step`, and `Explain selection`.
 - Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and whether cloud routing is allowed or blocked.
 - Clicking a suggestion calls `/execute` and shows a compact structured result panel tied to the selected action, redacted page context, and privacy route policy.
+- Execution uses action-specific prompt templates and deterministic fallbacks optimized for the result panel: compact summaries, key-fact bullets, comparison tables, next steps, explanations, and page-grounded answers.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.
 - Local privacy gateway scans browser context for secrets/PII, redacts trace context, labels sensitivity, and blocks cloud routes for secret/regulated/unknown context by default.
@@ -118,6 +119,12 @@ Run extension context helper tests:
 
 ```bash
 node --test extension/src/context-utils.test.js
+```
+
+Execution quality tests cover the action-specific Hermes prompt contracts and deterministic fallback panel outputs:
+
+```bash
+python -m pytest tests/test_execution_quality.py
 ```
 
 If Git reports dubious ownership for this checkout, add the repository as a safe directory:

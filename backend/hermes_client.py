@@ -22,12 +22,21 @@ MAX_RESULT_CHARS = int(os.getenv("PROMPTLESS_MAX_RESULT_CHARS", "5000"))
 logger = logging.getLogger(__name__)
 
 ACTION_PROMPTS = {
-    "explain_this": "Explain the most relevant concept, selection, or focused section in plain English. Return 1 short paragraph or 3 bullets max.",
-    "summarize_what_matters": "Summarize only the most decision-relevant or useful points. Return 3-6 bullets.",
-    "extract_key_facts": "Return only concrete facts, numbers, limits, requirements, and links.",
-    "compare_visible_options": "Compare the main visible options, plans, products, or choices. Focus on tradeoffs.",
-    "what_should_i_do_next": "Suggest the next 1-3 useful actions or checks based on the visible page state.",
-    "answer_from_page_context": "Answer the most likely user question from this page using only visible context.",
+    "explain_this": "Explain the selected/focused concept in plain English. Use only what appears in context; state if the context is insufficient.",
+    "summarize_what_matters": "Summarize the few details that change the user's understanding, decision, or next step.",
+    "extract_key_facts": "Extract concrete facts only: numbers, limits, dates, requirements, names, links, risks, and conditions.",
+    "compare_visible_options": "Compare visible plans, products, controls, or choices. Preserve prices/limits and surface tradeoffs.",
+    "what_should_i_do_next": "Suggest the next 1-3 low-risk steps based on the current page state, focused field, recent events, and visible controls.",
+    "answer_from_page_context": "Answer the likely question using only captured page context. Do not use outside knowledge.",
+}
+
+ACTION_OUTPUT_CONTRACTS = {
+    "explain_this": "Heading: Explanation. Then 1 short paragraph or up to 3 bullets. Define jargon, then say why it matters.",
+    "summarize_what_matters": "Heading: Summary. Then 3-6 bullets ordered by importance. No filler.",
+    "extract_key_facts": "Heading: Key facts. Then 3-7 bullets. Prefer facts containing numbers, limits, dates, requirements, or risks.",
+    "compare_visible_options": "Heading: Comparison. Include a compact markdown table with columns: Option | Best for | Key facts | Tradeoffs. End with one Recommendation bullet when supported by context.",
+    "what_should_i_do_next": "Heading: Next steps. Then 1-3 numbered or bulleted steps tied to focused fields, recent actions, or visible controls.",
+    "answer_from_page_context": "Heading: Answer. Start with 'Only from captured page context:' and answer in 1 paragraph or up to 4 bullets.",
 }
 
 
@@ -151,16 +160,25 @@ def execute_with_hermes(action_id: str, ctx: IntentRequest) -> str:
 def build_hermes_task(action_id: str, ctx: IntentRequest) -> str:
     compressed = compress_context(ctx)
     action_prompt = ACTION_PROMPTS.get(action_id, default_action(action_id).description)
+    output_contract = ACTION_OUTPUT_CONTRACTS.get(action_id, "Return concise bullets for the browser result panel.")
     likely_goal = infer_execution_goal(action_id, compressed)
     context_json = json.dumps(compressed, ensure_ascii=False, indent=2, default=str)
     return (
-        "You are executing a low-risk text-only action for a promptless browser assistant.\n\n"
+        "You are executing a low-risk text-only action for Promptless AI, a promptless browser assistant.\n\n"
         f"User intent: {likely_goal}\n\n"
         f"Action ID: {action_id}\n"
-        f"Action: {action_prompt}\n\n"
-        f"Page context:\n{context_json}\n\n"
-        "Return concise useful output for a small browser panel. "
-        "Do not automate the browser, files, APIs, or OS."
+        f"Action instruction: {action_prompt}\n\n"
+        "Privacy and context rules:\n"
+        "- Use only the redacted/compressed page context below.\n"
+        "- Do not invent facts, prices, limits, requirements, or page state.\n"
+        "- If context is insufficient, say exactly what is missing.\n"
+        "- Do not automate the browser, files, APIs, or OS.\n\n"
+        "Panel output contract:\n"
+        f"- {output_contract}\n"
+        "- No chatty preamble.\n"
+        "- Keep it compact for a small browser panel.\n"
+        "- Prefer bullets or a tiny table over paragraphs.\n\n"
+        f"Redacted/compressed page context:\n{context_json}"
     )
 
 
@@ -341,35 +359,131 @@ def execute_fallback_action(action_id: str, ctx: IntentRequest) -> str:
     compressed = compress_context(ctx)
     title = compressed.get("title") or compressed.get("url") or "this page"
     selected = str(compressed.get("selectedText") or "").strip()
+    focused = str(compressed.get("focusedElement") or "").strip()
     snippets = [str(s) for s in compressed.get("snippets", [])]
+    controls = [c for c in compressed.get("controls", [])[:20] if isinstance(c, dict)]
+    recent_events = [event for event in compressed.get("recentEvents", [])[-10:] if isinstance(event, dict)]
 
     if action_id == "explain_this":
-        focus = selected or str(compressed.get("focusedElement") or "") or first_snippet(snippets)
+        focus = selected or focused or first_snippet(snippets)
         return f"Explanation\n- {clean_line(focus) if focus else f'This page appears to be about {title}.'}"
 
     if action_id == "summarize_what_matters":
-        return f"Summary\n" + bullet_snippets(snippets, max_items=5)
+        return "Summary\n" + bullet_snippets(snippets, max_items=5)
 
     if action_id == "extract_key_facts":
-        return f"Key facts\n" + bullet_snippets(snippets, prefer_numbers=True, max_items=7)
+        return "Key facts\n" + bullet_snippets(snippets, prefer_numbers=True, max_items=7)
 
     if action_id == "compare_visible_options":
-        controls = compressed.get("controls", [])[:20]
-        lines = [f"- {c.get('text') or c.get('href')}" for c in controls if isinstance(c, dict) and (c.get("text") or c.get("href"))]
-        return "Comparison\n" + ("\n".join(lines[:7]) if lines else bullet_snippets(snippets, max_items=5))
+        return fallback_comparison(snippets, controls)
 
     if action_id == "what_should_i_do_next":
-        return (
-            "Next steps\n"
-            "- Review the most relevant visible details.\n"
-            "- Compare any available options or requirements.\n"
-            "- Use the page controls to continue only after confirming the key facts."
-        )
+        return fallback_next_steps(focused, controls, recent_events, snippets)
 
     if action_id == "answer_from_page_context":
-        return f"Answer\n" + bullet_snippets(snippets, max_items=4)
+        return "Answer\n- Only from captured page context: " + inline_context_answer(snippets)
 
     return f"{default_action(action_id).default_label}:\n" + bullet_snippets(snippets)
+
+
+def fallback_comparison(snippets: list[str], controls: list[dict]) -> str:
+    option_lines = option_like_lines(snippets)
+    control_lines = [clean_line(str(c.get("text") or c.get("href") or "")) for c in controls if c.get("text") or c.get("href")]
+    merged = dedupe_lines(option_lines + control_lines, max_items=6)
+    if not merged:
+        merged = ["No clear visible options were found in captured context."]
+
+    bullets = [f"- {line}" for line in merged]
+    if any(has_comparison_signal(line) for line in merged):
+        bullets.append("- Recommendation: compare the option with the best fit against the visible price, limit, and support tradeoffs.")
+    else:
+        bullets.append("- Recommendation: use the visible option details above as the comparison set before taking action.")
+    return "Comparison\n" + "\n".join(bullets)
+
+
+def fallback_next_steps(
+    focused: str,
+    controls: list[dict],
+    recent_events: list[dict],
+    snippets: list[str],
+) -> str:
+    steps: list[str] = []
+    if focused:
+        steps.append(f"Confirm the focused field: {clean_line(focused)}.")
+
+    recent_label = first_event_label(recent_events)
+    if recent_label and (not steps or recent_label.lower() not in steps[0].lower()):
+        steps.append(f"Use the recent page signal: {recent_label}.")
+
+    primary_control = first_control_label(controls)
+    if primary_control:
+        steps.append(f"When ready, use the visible control: {primary_control}.")
+
+    if not steps:
+        facts = bullet_snippets(snippets, max_items=1).removeprefix("- ")
+        steps.append(f"Check the captured page detail: {facts}")
+
+    return "Next steps\n" + "\n".join(f"- {step}" for step in dedupe_lines(steps, max_items=3))
+
+
+def inline_context_answer(snippets: list[str]) -> str:
+    if not snippets:
+        return "No relevant captured context was available."
+    return clean_line(" ".join(snippets[:2]))
+
+
+def option_like_lines(snippets: list[str]) -> list[str]:
+    lines: list[str] = []
+    for snippet in snippets:
+        for raw in snippet.splitlines() or [snippet]:
+            line = clean_line(raw)
+            if line and has_comparison_signal(line):
+                lines.append(line)
+    return lines
+
+
+def has_comparison_signal(text: str) -> bool:
+    lowered = text.lower()
+    terms = ["free", "pro", "enterprise", "basic", "premium", "plan", "pricing", "$", "per month", "/mo", "seat", "support"]
+    return any(term in lowered for term in terms)
+
+
+def first_control_label(controls: list[dict]) -> str:
+    for control in controls:
+        label = clean_line(str(control.get("text") or control.get("href") or ""))
+        if not label:
+            continue
+        lowered = label.lower()
+        if any(term in lowered for term in ["continue", "submit", "save", "choose", "contact", "sign up", "checkout"]):
+            return label
+    for control in controls:
+        label = clean_line(str(control.get("text") or control.get("href") or ""))
+        if label:
+            return label
+    return ""
+
+
+def first_event_label(events: list[dict]) -> str:
+    for event in reversed(events):
+        label = clean_line(str(event.get("text") or event.get("placeholder") or event.get("tag") or ""))
+        if label:
+            return label
+    return ""
+
+
+def dedupe_lines(lines: list[str], max_items: int) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        normalized = clean_line(line)
+        key = normalized.lower()
+        if not normalized or key in seen:
+            continue
+        seen.add(key)
+        result.append(normalized)
+        if len(result) >= max_items:
+            break
+    return result
 
 
 def bullet_snippets(
