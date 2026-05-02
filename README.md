@@ -14,6 +14,7 @@ Current MVP:
 - `traceId` returned with every intent response.
 - Strict backend action allowlist and low-risk-only filtering.
 - Compact pill renders backend suggestions.
+- Suggestion pill explains the non-sensitive signal behind the recommendation, such as selected text, focused field, recent click, or visible page structure.
 - Suggestions use contextual labels such as `Compare plans`, `Summarize issue`, `Next step`, and `Explain selection`.
 - Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and whether cloud routing is allowed or blocked.
 - Clicking a suggestion calls `/execute` and shows a compact result panel tied to the selected action and redacted page context.

@@ -29,12 +29,22 @@
   padding: 9px 10px 9px 12px;
 }
 
+.promptless-intent-wrap {
+  flex: 0 1 auto;
+  min-width: 190px;
+}
+
 .promptless-intent {
   color: #f3f4f6;
-  flex: 0 1 auto;
   font-size: 13px;
   line-height: 1.35;
-  min-width: 180px;
+}
+
+.promptless-basis {
+  color: #9ca3af;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 2px;
 }
 
 .promptless-actions {
@@ -391,7 +401,7 @@
     flex-direction: column;
   }
 
-  .promptless-intent {
+  .promptless-intent-wrap {
     min-width: 0;
   }
 

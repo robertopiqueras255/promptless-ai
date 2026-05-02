@@ -35,7 +35,28 @@
     return { className: "promptless-route promptless-route-local", label: "Cloud blocked" };
   }
 
-  const api = { textForElement, textForFormControl, privacyRouteStatus };
+  function suggestionBasis(context) {
+    if (context?.selectedText?.trim()) {
+      return "Based on selected text";
+    }
+    if (context?.focusedElement?.trim()) {
+      return "Based on the focused field";
+    }
+    const recent = Array.isArray(context?.recentEvents) ? context.recentEvents : [];
+    const lastEvent = [...recent].reverse().find((event) => event?.type && event.type !== "scroll");
+    if (lastEvent) {
+      if (lastEvent.type === "click") return "Based on your recent click";
+      if (lastEvent.type === "hover") return "Based on what you hovered";
+      if (lastEvent.type === "focus") return "Based on the focused field";
+      if (lastEvent.type === "selection") return "Based on selected text";
+    }
+    if (context?.viewportSummary?.trim()) {
+      return "Based on visible page structure";
+    }
+    return "Based on visible page text";
+  }
+
+  const api = { privacyRouteStatus, suggestionBasis, textForElement, textForFormControl };
   root.PromptlessContext = api;
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

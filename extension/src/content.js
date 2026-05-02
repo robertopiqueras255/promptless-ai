@@ -46,7 +46,7 @@ const staticActions = [
   }
 ];
 
-const { privacyRouteStatus, textForElement } = globalThis.PromptlessContext;
+const { privacyRouteStatus, suggestionBasis, textForElement } = globalThis.PromptlessContext;
 
 function pushEvent(event) {
   recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
@@ -213,9 +213,18 @@ function renderSuggestions(intent, actions, context, traceId) {
   const pill = document.createElement("div");
   pill.className = "promptless-pill";
 
+  const intentWrap = document.createElement("div");
+  intentWrap.className = "promptless-intent-wrap";
+
   const label = document.createElement("div");
   label.className = "promptless-intent";
   label.textContent = `Looks like you're ${intent}.`;
+
+  const basis = document.createElement("div");
+  basis.className = "promptless-basis";
+  basis.textContent = suggestionBasis(context);
+
+  intentWrap.append(label, basis);
 
   const actionsWrap = document.createElement("div");
   actionsWrap.className = "promptless-actions";
@@ -265,7 +274,7 @@ function renderSuggestions(intent, actions, context, traceId) {
     void postFeedback("dismissed", ensureTraceId(traceId), null, context);
   });
 
-  pill.append(label, actionsWrap, privacy, close);
+  pill.append(intentWrap, actionsWrap, privacy, close);
   root.appendChild(pill);
 }
 

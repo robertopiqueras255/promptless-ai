@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { privacyRouteStatus, textForElement } = require("./context-utils.js");
+const { privacyRouteStatus, suggestionBasis, textForElement } = require("./context-utils.js");
 
 function element({ tagName, textContent = "", value = "", attrs = {} }) {
   return {
@@ -79,4 +79,22 @@ test("privacy route status names redacted cloud routes explicitly", () => {
     className: "promptless-route promptless-route-cloud",
     label: "Redacted cloud allowed"
   });
+});
+
+test("suggestion basis prefers selected text", () => {
+  assert.equal(
+    suggestionBasis({ selectedText: "OAuth token", recentEvents: [{ type: "click", text: "Continue" }] }),
+    "Based on selected text"
+  );
+});
+
+test("suggestion basis uses recent click without exposing clicked text", () => {
+  assert.equal(
+    suggestionBasis({ recentEvents: [{ type: "scroll" }, { type: "click", text: "Private customer" }] }),
+    "Based on your recent click"
+  );
+});
+
+test("suggestion basis falls back to page structure", () => {
+  assert.equal(suggestionBasis({ viewportSummary: "Pricing | Plans" }), "Based on visible page structure");
 });
