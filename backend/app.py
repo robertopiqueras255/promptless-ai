@@ -9,8 +9,15 @@ from .actions import is_allowed_action
 from .hermes_client import execute_text_action
 from .intent import rank_actions
 from .privacy import PrivacyMode, SanitizedContext, route_context, sanitize_context
-from .schemas import ExecuteRequest, ExecuteResponse, FeedbackRequest, IntentRequest, IntentResponse
+from .schemas import ExecuteRequest, ExecuteResponse, FeedbackRequest, IntentRequest, IntentResponse, YouTubeRequest
 from .storage import log_execution, log_feedback, log_intent, new_trace_id
+from .youtube import (
+    build_context_patch,
+    classify_youtube_content,
+    extract_video_id,
+    fetch_transcript,
+    get_youtube_intervention,
+)
 
 app = FastAPI(title="Promptless AI Intent Backend", version="0.1.0")
 
@@ -61,6 +68,49 @@ def infer_intent(request: IntentRequest) -> IntentResponse:
     log_intent(trace_id, sanitized.context, response.model_dump(), privacy=privacy_metadata(sanitized, route))
     if safe_actions:
         log_feedback(trace_id, "shown", metadata={"actionIds": [action.id for action in safe_actions]})
+    return response
+
+
+@app.post("/youtube/intervene")
+def youtube_intervene(request: YouTubeRequest) -> dict[str, object]:
+    trace_id = new_trace_id()
+    video_id = request.videoId or extract_video_id(request.url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="Missing YouTube video id")
+
+    transcript = fetch_transcript(video_id)
+    metadata = {
+        "title": request.title,
+        "channel": request.channel,
+        "url": request.url,
+        "video_id": video_id,
+    }
+    classification = classify_youtube_content(transcript, metadata) if transcript else "UNKNOWN"
+    intervention = get_youtube_intervention(classification, transcript, metadata)
+    actions = intervention.get("actions", []) if intervention else []
+    response = {
+        "traceId": trace_id,
+        "classification": classification,
+        "intervention": intervention,
+        "actions": actions,
+        "intent": intervention.get("intent") if intervention else "",
+        "contextPatch": build_context_patch(transcript, metadata, classification) if transcript else {},
+        "transcriptPreview": transcript[:500],
+    }
+    log_intent(
+        trace_id,
+        {"workflow": "youtube", "url": request.url, "title": request.title, "videoId": video_id},
+        {
+            "workflow": "youtube",
+            "classification": classification,
+            "interventionShown": intervention is not None,
+            "transcriptLength": len(transcript),
+            "actionIds": [action.get("id") for action in actions if isinstance(action, dict)],
+        },
+        privacy={"sensitivity": "public", "route": "local", "cloudAllowed": False, "redactionCount": 0, "findingKinds": []},
+    )
+    if actions:
+        log_feedback(trace_id, "shown", metadata={"actionIds": [action["id"] for action in actions]})
     return response
 
 

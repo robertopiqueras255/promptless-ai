@@ -15,6 +15,7 @@ build/
 
 # Local runtime data and privacy-sensitive traces
 data/*.jsonl
+data/youtube_cache/
 !data/.gitkeep
 
 # Local env/secrets

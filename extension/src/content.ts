@@ -20,6 +20,7 @@ let lastSuggestionIntent = "";
 let lastSuggestionActions = [];
 let lastSuggestionContext = null;
 let lastSuggestionTraceId = null;
+let lastYouTubeWorkflowKey = "";
 
 function debug(...args) {
   if (DEBUG) console.debug("[PromptlessAI]", ...args);
@@ -142,6 +143,10 @@ async function sendContext(reason) {
 
   lastSentSignature = signature;
 
+  if (await maybeRenderYouTubeWorkflow(context, signature)) {
+    return;
+  }
+
   try {
     const response = await fetch(`${API_BASE}/intent`, {
       method: "POST",
@@ -167,6 +172,70 @@ async function sendContext(reason) {
   } catch (error) {
     debug("intent request failed", error);
     renderStaticSuggestions(context);
+  }
+}
+
+function detectYouTubeVideo() {
+  const host = window.location.hostname.toLowerCase();
+  const path = window.location.pathname;
+  let videoId = "";
+
+  if (host.endsWith("youtu.be")) {
+    videoId = path.split("/").filter(Boolean)[0] || "";
+  } else if (host.includes("youtube.com")) {
+    videoId = new URLSearchParams(window.location.search).get("v") || "";
+    if (!videoId) {
+      const match = path.match(/\/(?:shorts|embed)\/([^/?#]+)/);
+      videoId = match?.[1] || "";
+    }
+  }
+
+  if (!videoId) return null;
+
+  return {
+    videoId,
+    url: window.location.href,
+    title: document.title.replace(/\s+-\s+YouTube$/, ""),
+    channel: document.querySelector("#channel-name a, ytd-channel-name a")?.textContent?.trim() || ""
+  };
+}
+
+async function maybeRenderYouTubeWorkflow(context, signature) {
+  const youtubeContext = detectYouTubeVideo();
+  if (!youtubeContext || activeExecution || resultVisible) return false;
+
+  const workflowKey = `${youtubeContext.videoId}:${signature}`;
+  if (workflowKey === lastYouTubeWorkflowKey && document.getElementById("promptless-ai-root")) {
+    return true;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/youtube/intervene`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(youtubeContext)
+    });
+    if (!response.ok) {
+      debug("youtube workflow non-ok", response.status, await response.text());
+      return false;
+    }
+
+    const result = await response.json();
+    const actions = Array.isArray(result?.actions) ? result.actions : result?.intervention?.actions;
+    if (!Array.isArray(actions) || actions.length === 0) return false;
+
+    latestTraceId = result?.traceId || latestTraceId;
+    lastYouTubeWorkflowKey = workflowKey;
+    const workflowContext = {
+      ...context,
+      ...(result?.contextPatch || {}),
+      visibleText: context.visibleText
+    };
+    renderSuggestions(result?.intent || "watching an actionable video", actions.slice(0, 3), workflowContext, latestTraceId);
+    return true;
+  } catch (error) {
+    debug("youtube workflow failed", error);
+    return false;
   }
 }
 

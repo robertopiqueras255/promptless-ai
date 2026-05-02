@@ -14,6 +14,7 @@ from typing import Literal
 from .actions import default_action
 from .schemas import IntentRequest
 from .intent import compress_context
+from .youtube import transcript_from_context_dump, youtube_metadata_from_context_dump
 
 HERMES_PYTHON = os.getenv("PROMPTLESS_HERMES_PYTHON", "/home/alan/.hermes/hermes-agent/.venv/bin/python")
 HERMES_TIMEOUT_SECONDS = int(os.getenv("PROMPTLESS_HERMES_TIMEOUT_SECONDS", "45"))
@@ -28,6 +29,9 @@ ACTION_PROMPTS = {
     "compare_visible_options": "Compare visible plans, products, controls, or choices. Preserve prices/limits and surface tradeoffs.",
     "what_should_i_do_next": "Suggest the next 1-3 low-risk steps based on the current page state, focused field, recent events, and visible controls.",
     "answer_from_page_context": "Answer the likely question using only captured page context. Do not use outside knowledge.",
+    "save_tutorial_checklist": "Convert the YouTube tutorial transcript into an actionable checklist.",
+    "extract_code_snippets": "Extract code snippets, terminal commands, install steps, and config details from the YouTube transcript.",
+    "extract_ingredients": "Extract recipe ingredients, cooking steps, and useful notes from the YouTube transcript.",
 }
 
 ACTION_OUTPUT_CONTRACTS = {
@@ -37,6 +41,9 @@ ACTION_OUTPUT_CONTRACTS = {
     "compare_visible_options": "Heading: Comparison. Include a compact markdown table with columns: Option | Best for | Key facts | Tradeoffs. End with one Recommendation bullet when supported by context.",
     "what_should_i_do_next": "Heading: Next steps. Then 1-3 numbered or bulleted steps tied to focused fields, recent actions, or visible controls.",
     "answer_from_page_context": "Heading: Answer. Start with 'Only from captured page context:' and answer in 1 paragraph or up to 4 bullets.",
+    "save_tutorial_checklist": "Heading: Tutorial checklist. Include prerequisites, ordered [ ] checklist items, common mistakes, and a verification step.",
+    "extract_code_snippets": "Heading: Code and commands. Group each command/snippet by context and add a one-line purpose. Return NO_CODE_FOUND if none.",
+    "extract_ingredients": "Heading: Recipe. Include Ingredients, Steps, and Notes. Return NO_RECIPE_FOUND if no recipe is present.",
 }
 
 
@@ -158,6 +165,9 @@ def execute_with_hermes(action_id: str, ctx: IntentRequest) -> str:
 
 
 def build_hermes_task(action_id: str, ctx: IntentRequest) -> str:
+    if action_id in {"save_tutorial_checklist", "extract_code_snippets", "extract_ingredients"}:
+        return build_youtube_hermes_task(action_id, ctx)
+
     compressed = compress_context(ctx)
     action_prompt = ACTION_PROMPTS.get(action_id, default_action(action_id).description)
     output_contract = ACTION_OUTPUT_CONTRACTS.get(action_id, "Return concise bullets for the browser result panel.")
@@ -179,6 +189,41 @@ def build_hermes_task(action_id: str, ctx: IntentRequest) -> str:
         "- Keep it compact for a small browser panel.\n"
         "- Prefer bullets or a tiny table over paragraphs.\n\n"
         f"Redacted/compressed page context:\n{context_json}"
+    )
+
+
+def build_youtube_hermes_task(action_id: str, ctx: IntentRequest) -> str:
+    context_dump = ctx.model_dump()
+    metadata = youtube_metadata_from_context_dump(context_dump)
+    transcript = transcript_from_context_dump(context_dump) or ctx.visibleText
+    title = metadata.get("title") or ctx.title or "this video"
+    channel = metadata.get("channel") or "unknown channel"
+    action_prompt = ACTION_PROMPTS.get(action_id, default_action(action_id).description)
+    output_contract = ACTION_OUTPUT_CONTRACTS.get(action_id, "Return concise bullets for the browser result panel.")
+    payload = {
+        "video": {
+            "title": title,
+            "channel": channel,
+            "url": metadata.get("url") or ctx.url,
+            "videoId": metadata.get("videoId") or metadata.get("video_id") or "",
+        },
+        "transcript": transcript[:24000],
+    }
+    context_json = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    return (
+        "You are executing a low-risk YouTube workflow action for Promptless AI.\n\n"
+        f"Action ID: {action_id}\n"
+        f"Action instruction: {action_prompt}\n\n"
+        "Privacy and context rules:\n"
+        "- Use only the redacted/compressed page context, transcript, and metadata below.\n"
+        "- Do not invent facts, commands, ingredients, steps, links, or requirements.\n"
+        "- If the transcript is insufficient, say exactly what is missing.\n"
+        "- Do not automate the browser, files, APIs, or OS.\n\n"
+        "Panel output contract:\n"
+        f"- {output_contract}\n"
+        "- No chatty preamble.\n"
+        "- Keep it compact for a small browser panel.\n\n"
+        f"YouTube context:\n{context_json}"
     )
 
 
@@ -236,6 +281,12 @@ def format_result_for_action(action_id: str, text: str) -> str:
         return limit_output(compact_bullets("Next steps", cleaned, max_items=3))
     if action_id == "answer_from_page_context":
         return limit_output(compact_bullets("Answer", cleaned, max_items=5, prefer_numbers=True))
+    if action_id == "save_tutorial_checklist":
+        return limit_output(compact_bullets("Tutorial checklist", cleaned, max_items=10))
+    if action_id == "extract_code_snippets":
+        return limit_output(cleaned if cleaned.startswith("Code and commands") else f"Code and commands\n{cleaned}")
+    if action_id == "extract_ingredients":
+        return limit_output(cleaned if cleaned.startswith("Recipe") else f"Recipe\n{cleaned}")
     return limit_output(cleaned)
 
 
@@ -356,6 +407,9 @@ def finish_execution(
 
 
 def execute_fallback_action(action_id: str, ctx: IntentRequest) -> str:
+    if action_id in {"save_tutorial_checklist", "extract_code_snippets", "extract_ingredients"}:
+        return execute_youtube_fallback_action(action_id, ctx)
+
     compressed = compress_context(ctx)
     title = compressed.get("title") or compressed.get("url") or "this page"
     selected = str(compressed.get("selectedText") or "").strip()
@@ -384,6 +438,79 @@ def execute_fallback_action(action_id: str, ctx: IntentRequest) -> str:
         return "Answer\n- Only from captured page context: " + inline_context_answer(snippets)
 
     return f"{default_action(action_id).default_label}:\n" + bullet_snippets(snippets)
+
+
+def execute_youtube_fallback_action(action_id: str, ctx: IntentRequest) -> str:
+    context_dump = ctx.model_dump()
+    transcript = transcript_from_context_dump(context_dump) or ctx.visibleText
+    lines = dedupe_lines(split_transcript_lines(transcript), max_items=12)
+
+    if action_id == "save_tutorial_checklist":
+        if not lines:
+            return "Tutorial checklist\n- Transcript unavailable, so no checklist could be built."
+        items = [f"- [ ] {line}" for line in lines[:8]]
+        items.append("- [ ] Verify the result using the final visible check or expected output from the video.")
+        return "Tutorial checklist\n" + "\n".join(items)
+
+    if action_id == "extract_code_snippets":
+        code_lines = [line for line in lines if looks_like_code_or_command(line)]
+        if not code_lines:
+            return "Code and commands\nNO_CODE_FOUND"
+        return "Code and commands\n" + "\n".join(f"- {line}" for line in code_lines[:10])
+
+    if action_id == "extract_ingredients":
+        ingredient_lines = [line for line in lines if looks_like_ingredient(line)]
+        if not ingredient_lines and not any(term in transcript.lower() for term in ["recipe", "ingredients", "cook", "bake"]):
+            return "Recipe\nNO_RECIPE_FOUND"
+        steps = lines[:8] if lines else ["Transcript did not include clear steps."]
+        ingredients = ingredient_lines[:10] or ["Ingredients were mentioned but not clearly separated in the transcript."]
+        return (
+            "Recipe\n"
+            "Ingredients\n"
+            + "\n".join(f"- {line}" for line in ingredients)
+            + "\nSteps\n"
+            + "\n".join(f"{idx}. {line}" for idx, line in enumerate(steps[:8], start=1))
+        )
+
+    return "No YouTube fallback is available."
+
+
+def split_transcript_lines(transcript: str) -> list[str]:
+    if not transcript.strip():
+        return []
+    raw_lines = []
+    for chunk in transcript.replace(". ", ".\n").splitlines():
+        line = clean_line(chunk)
+        if len(line.split()) >= 3:
+            raw_lines.append(line)
+    return raw_lines
+
+
+def looks_like_code_or_command(text: str) -> bool:
+    lowered = text.lower()
+    command_terms = [
+        "npm ",
+        "pip ",
+        "python ",
+        "git ",
+        "docker ",
+        "curl ",
+        "yarn ",
+        "pnpm ",
+        "import ",
+        "const ",
+        "function ",
+        "class ",
+        "return ",
+        "sudo ",
+    ]
+    return any(term in lowered for term in command_terms) or any(marker in text for marker in ["=>", "==", "&&", "--"])
+
+
+def looks_like_ingredient(text: str) -> bool:
+    lowered = text.lower()
+    units = ["cup", "cups", "tbsp", "tablespoon", "tsp", "teaspoon", "gram", "grams", "ounce", "ounces", "ml", "kg"]
+    return any(unit in lowered for unit in units) and any(char.isdigit() for char in lowered)
 
 
 def fallback_comparison(snippets: list[str], controls: list[dict]) -> str:

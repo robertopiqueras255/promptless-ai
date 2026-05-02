@@ -44,6 +44,21 @@ ACTION_DEFINITIONS: dict[str, ActionDefinition] = {
         default_label="Answer from page",
         description="Answer the most likely question using only the current page context.",
     ),
+    "save_tutorial_checklist": ActionDefinition(
+        id="save_tutorial_checklist",
+        default_label="Save checklist",
+        description="Turn an actionable YouTube tutorial transcript into a concrete checklist.",
+    ),
+    "extract_code_snippets": ActionDefinition(
+        id="extract_code_snippets",
+        default_label="Extract code",
+        description="Extract commands, code snippets, and setup steps from an actionable YouTube tutorial.",
+    ),
+    "extract_ingredients": ActionDefinition(
+        id="extract_ingredients",
+        default_label="Extract ingredients",
+        description="Extract ingredients, steps, and notes from a cooking or recipe video.",
+    ),
 }
 
 ALLOWED_ACTION_IDS = frozenset(ACTION_DEFINITIONS)
