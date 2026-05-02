@@ -15,7 +15,7 @@ Current MVP:
 - Strict backend action allowlist and low-risk-only filtering.
 - Compact pill renders backend suggestions.
 - Suggestions use contextual labels such as `Compare plans`, `Summarize issue`, `Next step`, and `Explain selection`.
-- Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and local/cloud route status.
+- Suggestion pill includes a privacy preview that shows redacted context, sensitivity, redaction count, finding kinds, and whether cloud routing is allowed or blocked.
 - Clicking a suggestion calls `/execute` and shows a compact result panel tied to the selected action and redacted page context.
 - Feedback events post to `/feedback` and append to `data/traces.jsonl`.
 - `/execute` routes to the local Hermes CLI when available, with deterministic fallback text if Hermes fails.

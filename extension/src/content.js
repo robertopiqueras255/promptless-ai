@@ -46,7 +46,7 @@ const staticActions = [
   }
 ];
 
-const { textForElement } = globalThis.PromptlessContext;
+const { privacyRouteStatus, textForElement } = globalThis.PromptlessContext;
 
 function pushEvent(event) {
   recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
@@ -356,8 +356,9 @@ function showPrivacyPanel(preview, onClose = null) {
   title.textContent = "Privacy preview";
 
   const status = document.createElement("div");
-  status.className = preview?.cloudAllowed ? "promptless-route promptless-route-cloud" : "promptless-route promptless-route-local";
-  status.textContent = preview?.error ? "Unavailable" : preview?.cloudAllowed ? "Redacted route allowed" : "Local only";
+  const routeStatus = privacyRouteStatus(preview);
+  status.className = routeStatus.className;
+  status.textContent = routeStatus.label;
 
   header.append(title, status);
 

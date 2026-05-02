@@ -25,7 +25,17 @@
     return label.trim().slice(0, 120);
   }
 
-  const api = { textForElement, textForFormControl };
+  function privacyRouteStatus(preview) {
+    if (preview?.error) {
+      return { className: "promptless-route promptless-route-local", label: "Unavailable" };
+    }
+    if (preview?.cloudAllowed) {
+      return { className: "promptless-route promptless-route-cloud", label: "Redacted cloud allowed" };
+    }
+    return { className: "promptless-route promptless-route-local", label: "Cloud blocked" };
+  }
+
+  const api = { textForElement, textForFormControl, privacyRouteStatus };
   root.PromptlessContext = api;
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

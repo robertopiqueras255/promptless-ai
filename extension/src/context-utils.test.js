@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { textForElement } = require("./context-utils.js");
+const { privacyRouteStatus, textForElement } = require("./context-utils.js");
 
 function element({ tagName, textContent = "", value = "", attrs = {} }) {
   return {
@@ -65,4 +65,18 @@ test("non-form elements use visible text", () => {
   });
 
   assert.equal(textForElement(el), "Pricing details");
+});
+
+test("privacy route status names blocked local routes explicitly", () => {
+  assert.deepEqual(privacyRouteStatus({ cloudAllowed: false, route: "local" }), {
+    className: "promptless-route promptless-route-local",
+    label: "Cloud blocked"
+  });
+});
+
+test("privacy route status names redacted cloud routes explicitly", () => {
+  assert.deepEqual(privacyRouteStatus({ cloudAllowed: true, route: "cloud_redacted" }), {
+    className: "promptless-route promptless-route-cloud",
+    label: "Redacted cloud allowed"
+  });
 });
