@@ -85,6 +85,7 @@ def main() -> None:
             shown_by_action[action_id] += 1
 
     accepted_by_action = Counter(r.get("actionId") for r in feedback if r.get("event") == "accepted" and r.get("actionId"))
+    dismissed_by_action = Counter(r.get("actionId") for r in feedback if r.get("event") == "dismissed" and r.get("actionId"))
     thumbs_up_by_action = Counter(r.get("actionId") for r in feedback if r.get("event") == "thumbs_up" and r.get("actionId"))
     thumbs_down_by_action = Counter(r.get("actionId") for r in feedback if r.get("event") == "thumbs_down" and r.get("actionId"))
     executed_by_action = Counter(r.get("actionId") for r in executions if r.get("actionId"))
@@ -115,6 +116,18 @@ def main() -> None:
     print(f"Total thumbs_down: {feedback_by_event['thumbs_down']}")
     print(f"Total intent redactions: {intent_redaction_total}")
     print(f"Total execution redactions: {execution_redaction_total}")
+
+    print_quality_report(
+        intents=intents,
+        feedback_by_event=feedback_by_event,
+        shown_by_action=shown_by_action,
+        accepted_by_action=accepted_by_action,
+        dismissed_by_action=dismissed_by_action,
+        executed_by_action=executed_by_action,
+        thumbs_up_by_action=thumbs_up_by_action,
+        thumbs_down_by_action=thumbs_down_by_action,
+        page_dismissals=page_dismissals_from_feedback(feedback, intent_by_trace),
+    )
 
     print("\nPrompt Avoidance Rate")
     print(f"  accepted/shown: {feedback_by_event['accepted']}/{feedback_by_event['shown']} ({percent(feedback_by_event['accepted'], feedback_by_event['shown'])})")
@@ -151,6 +164,85 @@ def main() -> None:
     print_counter("Most common intents", intent_names)
     print_counter("Most common domains", domains)
     print_counter("Most common pages", pages, limit=8)
+
+
+def print_quality_report(
+    *,
+    intents: list[dict],
+    feedback_by_event: Counter,
+    shown_by_action: Counter,
+    accepted_by_action: Counter,
+    dismissed_by_action: Counter,
+    executed_by_action: Counter,
+    thumbs_up_by_action: Counter,
+    thumbs_down_by_action: Counter,
+    page_dismissals: Counter,
+) -> None:
+    pages = {((record.get("request") or {}).get("url") or "(unknown)") for record in intents}
+    total_shown_actions = sum(shown_by_action.values())
+    print("\nPromptless AI Quality Report")
+    print(f"  Pages observed: {len(pages)}")
+    print(f"  Suggestions shown: {total_shown_actions}")
+    print(f"  Accepted actions: {feedback_by_event['accepted']}")
+    print(f"  Dismissed: {feedback_by_event['dismissed']}")
+    print(f"  Executed actions: {sum(executed_by_action.values())}")
+    print(f"  Prompt avoidance rate: {feedback_by_event['accepted']}/{total_shown_actions} ({percent(feedback_by_event['accepted'], total_shown_actions)})")
+
+    print("\nBest actions")
+    best_actions = sorted(
+        shown_by_action,
+        key=lambda action_id: (accepted_by_action[action_id], thumbs_up_by_action[action_id], -thumbs_down_by_action[action_id], shown_by_action[action_id]),
+        reverse=True,
+    )
+    if not best_actions:
+        print("  none")
+    for action_id in best_actions[:5]:
+        accepted = accepted_by_action[action_id]
+        shown = shown_by_action[action_id]
+        if accepted == 0:
+            continue
+        print(
+            f"  {action_id}: accepted {accepted}/{shown} ({percent(accepted, shown)}), "
+            f"executed {executed_by_action[action_id]}, thumbs +{thumbs_up_by_action[action_id]}/-{thumbs_down_by_action[action_id]}"
+        )
+
+    print("\nNoisy actions")
+    noisy_actions = sorted(
+        shown_by_action,
+        key=lambda action_id: (dismissed_by_action[action_id], -accepted_by_action[action_id], shown_by_action[action_id]),
+        reverse=True,
+    )
+    printed_noisy = False
+    for action_id in noisy_actions[:5]:
+        dismissed = dismissed_by_action[action_id]
+        shown = shown_by_action[action_id]
+        if dismissed == 0:
+            continue
+        printed_noisy = True
+        print(
+            f"  {action_id}: dismissed {dismissed}/{shown} ({percent(dismissed, shown)}), "
+            f"accepted {accepted_by_action[action_id]}/{shown} ({percent(accepted_by_action[action_id], shown)})"
+        )
+    if not printed_noisy:
+        print("  none")
+
+    print("\nPages with most dismissals")
+    if not page_dismissals:
+        print("  none")
+    for page, count in page_dismissals.most_common(8):
+        print(f"  {page}: {count}")
+
+
+def page_dismissals_from_feedback(feedback: list[dict], intent_by_trace: dict[str | None, dict]) -> Counter[str]:
+    page_dismissals: Counter[str] = Counter()
+    for record in feedback:
+        if record.get("event") != "dismissed":
+            continue
+        intent = intent_by_trace.get(record.get("traceId")) or {}
+        request = intent.get("request") or {}
+        page = request.get("url") or "(unknown)"
+        page_dismissals[page] += 1
+    return page_dismissals
 
 
 def count_duplicate_shown(shown_records: list[dict], intent_by_trace: dict[str | None, dict]) -> int:
