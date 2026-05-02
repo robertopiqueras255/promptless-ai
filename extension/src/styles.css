@@ -302,14 +302,37 @@
 .promptless-result-body {
   background: transparent;
   color: #e5e7eb;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
-  line-height: 1.55;
-  margin: 0;
+  line-height: 1.5;
   max-height: 300px;
   overflow: auto;
   padding: 12px;
-  white-space: pre-wrap;
+}
+
+.promptless-result-heading,
+.promptless-result-paragraph,
+.promptless-result-bullet {
+  margin: 0;
+}
+
+.promptless-result-heading {
+  color: #f9fafb;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.promptless-result-paragraph,
+.promptless-result-bullet {
+  color: #e5e7eb;
+  overflow-wrap: anywhere;
+}
+
+.promptless-result-body > * + * {
+  margin-top: 7px;
+}
+
+.promptless-result-bullet {
+  padding-left: 4px;
 }
 
 .promptless-result-controls {

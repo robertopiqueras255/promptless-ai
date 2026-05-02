@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { privacyRouteStatus, suggestionBasis, textForElement } = require("./context-utils.js");
+const { privacyRouteStatus, resultParts, suggestionBasis, textForElement } = require("./context-utils.js");
 
 function element({ tagName, textContent = "", value = "", attrs = {} }) {
   return {
@@ -97,4 +97,26 @@ test("suggestion basis uses recent click without exposing clicked text", () => {
 
 test("suggestion basis falls back to page structure", () => {
   assert.equal(suggestionBasis({ viewportSummary: "Pricing | Plans" }), "Based on visible page structure");
+});
+
+test("result parts parse headings and bullets", () => {
+  assert.deepEqual(resultParts("Summary\n- First point\n- Second point"), [
+    { type: "heading", text: "Summary" },
+    { type: "bullet", text: "First point" },
+    { type: "bullet", text: "Second point" }
+  ]);
+});
+
+test("result parts parse numbered lines as bullets", () => {
+  assert.deepEqual(resultParts("Next steps\n1. Confirm plan\n2. Continue checkout"), [
+    { type: "heading", text: "Next steps" },
+    { type: "bullet", text: "Confirm plan" },
+    { type: "bullet", text: "Continue checkout" }
+  ]);
+});
+
+test("result parts preserve plain paragraphs", () => {
+  assert.deepEqual(resultParts("This page explains OAuth token expiry."), [
+    { type: "paragraph", text: "This page explains OAuth token expiry." }
+  ]);
 });

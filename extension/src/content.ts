@@ -46,7 +46,7 @@ const staticActions = [
   }
 ];
 
-const { privacyRouteStatus, suggestionBasis, textForElement } = globalThis.PromptlessContext;
+const { privacyRouteStatus, resultParts, suggestionBasis, textForElement } = globalThis.PromptlessContext;
 
 function pushEvent(event) {
   recentEvents = [...recentEvents, event].slice(-MAX_EVENTS);
@@ -564,9 +564,9 @@ function showResult(action, result, traceId, actionId, status = "done", context 
 
   header.append(heading, meta, description);
 
-  const body = document.createElement("pre");
+  const body = document.createElement("div");
   body.className = "promptless-result-body";
-  body.textContent = result;
+  renderResultBody(body, result);
 
   const controls = document.createElement("div");
   controls.className = "promptless-result-controls";
@@ -609,6 +609,15 @@ function showResult(action, result, traceId, actionId, status = "done", context 
   controls.append(privacy, copy, good, bad, close);
   panel.append(header, body, controls);
   root.appendChild(panel);
+}
+
+function renderResultBody(body, result) {
+  resultParts(result).forEach((part) => {
+    const el = document.createElement(part.type === "bullet" ? "div" : "p");
+    el.className = `promptless-result-${part.type}`;
+    el.textContent = part.type === "bullet" ? `• ${part.text}` : part.text;
+    body.appendChild(el);
+  });
 }
 
 function resultMetaText(context) {

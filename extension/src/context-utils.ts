@@ -56,7 +56,33 @@
     return "Based on visible page text";
   }
 
-  const api = { privacyRouteStatus, suggestionBasis, textForElement, textForFormControl };
+  function resultParts(text) {
+    const lines = String(text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const parts = [];
+    for (const line of lines) {
+      const bullet = line.match(/^[-*]\s+(.+)$/);
+      if (bullet) {
+        parts.push({ type: "bullet", text: bullet[1].trim() });
+        continue;
+      }
+      const numbered = line.match(/^\d+[.)]\s+(.+)$/);
+      if (numbered) {
+        parts.push({ type: "bullet", text: numbered[1].trim() });
+        continue;
+      }
+      if (parts.length === 0 && line.length <= 80 && !/[.!?]$/.test(line)) {
+        parts.push({ type: "heading", text: line });
+        continue;
+      }
+      parts.push({ type: "paragraph", text: line });
+    }
+    return parts.length ? parts : [{ type: "paragraph", text: "No result returned." }];
+  }
+
+  const api = { privacyRouteStatus, resultParts, suggestionBasis, textForElement, textForFormControl };
   root.PromptlessContext = api;
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
