@@ -8,12 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from .actions import is_allowed_action
 from .hermes_client import execute_text_action
 from .intent import rank_actions
+from .memory import for_hermes, store_youtube
 from .privacy import PrivacyMode, SanitizedContext, route_context, sanitize_context
 from .schemas import ExecuteRequest, ExecuteResponse, FeedbackRequest, IntentRequest, IntentResponse, YouTubeRequest
 from .storage import log_execution, log_feedback, log_intent, new_trace_id
 from .youtube import (
     build_context_patch,
     classify_youtube_content,
+    detect_actionable_subtype,
     extract_video_id,
     fetch_transcript,
     get_youtube_intervention,
@@ -111,6 +113,21 @@ def youtube_intervene(request: YouTubeRequest) -> dict[str, object]:
     )
     if actions:
         log_feedback(trace_id, "shown", metadata={"actionIds": [action["id"] for action in actions]})
+
+    # Store in promptless memory for Hermes context
+    if transcript and classification != "UNKNOWN":
+        subtype = detect_actionable_subtype(transcript, metadata) if classification == "ACTIONABLE" else ""
+        memory_entry = store_youtube(
+            url=request.url,
+            title=request.title,
+            channel=request.channel,
+            classification=classification,
+            summary=f"{'Actionable' if classification == 'ACTIONABLE' else 'Leisure'} video. Subtype: {subtype}. "
+                    f"Transcript preview: {transcript[:300]}",
+            transcript_preview=transcript[:2000],
+        )
+        response["memoryId"] = memory_entry.get("id", "")
+
     return response
 
 
@@ -153,6 +170,41 @@ def feedback(request: FeedbackRequest) -> dict[str, str]:
         raise HTTPException(status_code=400, detail="Unknown or disallowed actionId")
     log_feedback(request.traceId, request.event, request.actionId, request.metadata)
     return {"status": "ok"}
+
+
+@app.get("/memory/hermes")
+def memory_for_hermes(q: str, limit: int = 5) -> dict[str, str]:
+    """Retrieve memories relevant to a query and return as a Hermes-ready context block."""
+    context = for_hermes(q, limit=limit)
+    return {"context": context, "query": q}
+
+
+@app.post("/memory/store")
+def memory_store(
+    entry_type: str,
+    title: str,
+    summary: str,
+    url: str = "",
+    workflow: str = "",
+    action_taken: str = "",
+    extracted_content: str = "",
+    tags: str = "",
+    user_id: str = "default",
+) -> dict:
+    """Manually store a memory entry (for testing or manual use)."""
+    from .memory import store
+    entry = store(
+        entry_type=entry_type,
+        title=title,
+        summary=summary,
+        url=url or None,
+        workflow=workflow or None,
+        action_taken=action_taken or None,
+        extracted_content=extracted_content or None,
+        tags=[t.strip() for t in tags.split(",") if t.strip()] if tags else None,
+        user_id=user_id,
+    )
+    return {"id": entry["id"], "visit_count": entry["visit_count"]}
 
 
 def privacy_metadata(sanitized: SanitizedContext, route) -> dict[str, object]:
