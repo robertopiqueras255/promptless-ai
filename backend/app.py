@@ -10,7 +10,7 @@ from .hermes_client import execute_text_action
 from .intent import rank_actions
 from .memory import for_hermes, store_youtube
 from .privacy import PrivacyMode, SanitizedContext, route_context, sanitize_context
-from .schemas import ExecuteRequest, ExecuteResponse, FeedbackRequest, IntentRequest, IntentResponse, YouTubeRequest
+from .schemas import ExecuteRequest, ExecuteResponse, FeedbackRequest, IntentRequest, IntentResponse, MemoryStoreRequest, YouTubeRequest
 from .storage import log_execution, log_feedback, log_intent, new_trace_id
 from .youtube import (
     build_context_patch,
@@ -180,29 +180,19 @@ def memory_for_hermes(q: str, limit: int = 5) -> dict[str, str]:
 
 
 @app.post("/memory/store")
-def memory_store(
-    entry_type: str,
-    title: str,
-    summary: str,
-    url: str = "",
-    workflow: str = "",
-    action_taken: str = "",
-    extracted_content: str = "",
-    tags: str = "",
-    user_id: str = "default",
-) -> dict:
+def memory_store(request: MemoryStoreRequest) -> dict:
     """Manually store a memory entry (for testing or manual use)."""
     from .memory import store
     entry = store(
-        entry_type=entry_type,
-        title=title,
-        summary=summary,
-        url=url or None,
-        workflow=workflow or None,
-        action_taken=action_taken or None,
-        extracted_content=extracted_content or None,
-        tags=[t.strip() for t in tags.split(",") if t.strip()] if tags else None,
-        user_id=user_id,
+        entry_type=request.entry_type,
+        title=request.title,
+        summary=request.summary,
+        url=request.url or None,
+        workflow=request.workflow or None,
+        action_taken=request.action_taken or None,
+        extracted_content=request.extracted_content or None,
+        tags=request.tags,
+        user_id=request.user_id,
     )
     return {"id": entry["id"], "visit_count": entry["visit_count"]}
 

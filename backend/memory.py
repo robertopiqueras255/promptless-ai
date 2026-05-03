@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -188,7 +187,7 @@ def for_hermes(user_query: str, limit: int = 5, user_id: str = "default") -> str
     Build a memory context block to inject into a Hermes prompt.
     Called when the user prompts Hermes after browsing/watching.
     """
-    memories = retrieve(user_query, limit=limit)
+    memories = retrieve(user_query, limit=limit, user_id=user_id)
     if not memories:
         return ""
 

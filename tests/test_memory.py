@@ -1,14 +1,8 @@
 """Tests for the Promptless memory layer."""
 
-import json
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from backend.memory import (
-    EntryType,
-    _now_iso,
     for_hermes,
     retrieve,
     store,
@@ -136,6 +130,21 @@ def test_for_hermes_empty_for_no_matches(memory_path):
     assert results == []
 
 
+def test_for_hermes_respects_user_id(memory_path):
+    store(
+        entry_type="youtube_actionable",
+        title="Private User Video",
+        summary="A private memory for another user",
+        url="https://youtube.com/watch?v=private123",
+        tags=["private"],
+        user_id="other_user",
+    )
+
+    assert for_hermes("private", user_id="default") == ""
+    context = for_hermes("private", user_id="other_user")
+    assert "Private User Video" in context
+
+
 def test_store_youtube_actionable(memory_path):
     entry = store_youtube(
         url="https://youtube.com/watch?v=action123",
@@ -181,6 +190,32 @@ def test_store_web_extraction(memory_path):
     assert entry["type"] == "generic_extraction"
     assert entry["workflow"] == "github_issue"
     assert entry["action_taken"] == "extracted_facts"
+
+
+def test_memory_store_endpoint_accepts_json(memory_path):
+    """Manual memory store endpoint should accept JSON bodies, not query params only."""
+    from fastapi.testclient import TestClient
+
+    from backend import app as app_module
+
+    client = TestClient(app_module.app)
+    response = client.post(
+        "/memory/store",
+        json={
+            "entry_type": "youtube_actionable",
+            "title": "Codex Workflow | YouTube",
+            "summary": "Tutorial about Codex workflow automation",
+            "url": "https://youtube.com/watch?v=codex-json",
+            "workflow": "youtube",
+            "tags": "codex, workflow, tutorial",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["id"]
+
+    results = retrieve("codex", user_id="default")
+    assert len(results) == 1
+    assert results[0]["tags"] == ["codex", "workflow", "tutorial"]
 
 
 def test_memory_endpoint(monkeypatch, tmp_path):
