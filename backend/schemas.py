@@ -118,3 +118,33 @@ class YouTubeRequest(BaseModel):
     @classmethod
     def coerce_youtube_str(cls, value: Any) -> str:
         return "" if value is None else str(value)
+
+
+class MemoryStoreRequest(BaseModel):
+    entry_type: str
+    title: str
+    summary: str
+    url: str = ""
+    workflow: str = ""
+    action_taken: str = ""
+    extracted_content: str = ""
+    tags: list[str] = Field(default_factory=list)
+    user_id: str = "default"
+
+    model_config = {"extra": "ignore"}
+
+    @field_validator("entry_type", "title", "summary", "url", "workflow", "action_taken", "extracted_content", "user_id", mode="before")
+    @classmethod
+    def coerce_memory_str(cls, value: Any) -> str:
+        return "" if value is None else str(value)
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def coerce_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [tag.strip() for tag in value.split(",") if tag.strip()]
+        if isinstance(value, list):
+            return [str(tag).strip() for tag in value if str(tag).strip()]
+        return []
