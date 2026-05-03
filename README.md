@@ -31,6 +31,9 @@ When you open a YouTube video, Promptless fetches the public captions and classi
 - **LEISURE** — vlog, reaction, entertainment
   - No suggestion shown
   - Stored in memory for later reference
+- **UNKNOWN** — no usable captions or insufficient context yet
+  - No suggestion shown
+  - Stored as a pending YouTube memory, then enriched asynchronously if captions or local transcription become available
 
 ### Web workflows
 
@@ -95,6 +98,37 @@ Environment variables:
 | `PROMPTLESS_HERMES_ENABLED` | `1` | Set `0` to force deterministic fallback |
 | `PROMPTLESS_HERMES_TIMEOUT_SECONDS` | `45` | Hermes execution timeout |
 | `PROMPTLESS_MAX_RESULT_CHARS` | `5000` | Panel result length limit |
+| `PROMPTLESS_YOUTUBE_ASR` | `off` | Set `faster-whisper` to enable local CPU transcription fallback for videos without captions |
+| `PROMPTLESS_YOUTUBE_ASR_MODEL` | `base` | faster-whisper model name when ASR is enabled |
+| `PROMPTLESS_YOUTUBE_ASR_MAX_SECONDS` | `1800` | Skip ASR for videos longer than this duration |
+| `PROMPTLESS_OLLAMA_RERANK` | `1` | Set `0` to disable background local LLM action reranking |
+| `PROMPTLESS_RERANK_TIER` | `auto` | Model tier: `auto`, `fast`, or `quality` |
+| `PROMPTLESS_RERANK_TIMEOUT` | `15` | Per-model Ollama rerank timeout in seconds |
+| `PROMPTLESS_MAX_CANDIDATES` | `5` | Max candidate actions sent to the reranker |
+| `PROMPTLESS_OLLAMA_RERANK_MODEL` | unset | Optional explicit Ollama model override |
+
+YouTube transcript fallback is layered. The backend first tries YouTube timedtext captions, then `yt-dlp` subtitle extraction if `yt-dlp` is installed. Audio transcription is opt-in because it requires `yt-dlp`, ffmpeg support, and `faster-whisper`.
+
+```bash
+python -m pip install -r backend/requirements-transcription.txt
+$env:PROMPTLESS_YOUTUBE_ASR="faster-whisper"
+```
+
+Optional local action reranking uses Ollama in the background. The `/intent` response remains deterministic and immediate; rerank results are logged as trace feedback when Ollama returns a valid JSON ranking.
+
+Rerank tiers:
+
+- `auto` — tries `gemma:7b`, `gemma:2b`, `qwen2.5:1.5b`, then `qwen2.5:3b`; uses the best available model.
+- `fast` — tries lightweight models: `gemma:2b`, `qwen2.5:1.5b`.
+- `quality` — tries larger models: `gemma:7b`, `qwen2.5:3b`.
+
+```bash
+# Install Ollama from https://ollama.com, then:
+ollama pull gemma:2b
+ollama list
+curl -X POST http://localhost:11434/api/generate -d '{"model":"gemma:2b","prompt":"test","stream":false}'
+curl http://127.0.0.1:8000/llm/status
+```
 
 ```bash
 # Health check

@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +22,14 @@ from .schemas import SuggestedAction
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 CACHE_DIR = DATA_DIR / "youtube_cache"
 Classification = Literal["ACTIONABLE", "LEISURE", "UNKNOWN"]
+
+
+@dataclass(frozen=True)
+class TranscriptResult:
+    text: str
+    source: str = ""
+    status: str = "missing"
+    error: str = ""
 
 ACTIONABLE_TERMS = [
     "how to",
@@ -69,19 +83,40 @@ def extract_video_id(url: str) -> str:
 
 def fetch_transcript(video_id: str) -> str:
     """Fetch and cache public captions from YouTube's timedtext endpoint."""
+    return fetch_transcript_with_source(video_id).text
+
+
+def fetch_transcript_with_source(video_id: str, allow_ytdlp: bool = False, allow_asr: bool = False) -> TranscriptResult:
+    """Fetch captions, then optionally fall back to yt-dlp captions or opt-in ASR."""
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", video_id)
     if not safe_id:
-        return ""
+        return TranscriptResult("", status="failed", error="invalid_video_id")
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path = CACHE_DIR / f"{safe_id}.txt"
     if cache_path.exists():
-        return cache_path.read_text(encoding="utf-8")
+        return TranscriptResult(cache_path.read_text(encoding="utf-8"), source="cache", status="done")
 
     transcript = fetch_transcript_uncached(safe_id)
     if transcript:
         cache_path.write_text(transcript, encoding="utf-8")
-    return transcript
+        return TranscriptResult(transcript, source="youtube_caption", status="done")
+
+    if allow_ytdlp:
+        ytdlp_result = fetch_ytdlp_captions(safe_id)
+        if ytdlp_result.text:
+            cache_path.write_text(ytdlp_result.text, encoding="utf-8")
+            return ytdlp_result
+        if ytdlp_result.status == "failed":
+            return ytdlp_result
+
+    if allow_asr:
+        asr_result = transcribe_audio_asr(safe_id)
+        if asr_result.text:
+            cache_path.write_text(asr_result.text, encoding="utf-8")
+        return asr_result
+
+    return TranscriptResult("", status="missing", error="captions_unavailable")
 
 
 def fetch_transcript_uncached(video_id: str) -> str:
@@ -119,6 +154,131 @@ def http_get(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "PromptlessAI/0.1"})
     with urllib.request.urlopen(request, timeout=8) as response:
         return response.read().decode("utf-8", errors="replace")
+
+
+def fetch_ytdlp_captions(video_id: str) -> TranscriptResult:
+    """Try yt-dlp subtitle extraction without downloading media."""
+    ytdlp_command = ytdlp_base_command()
+    if not ytdlp_command:
+        return TranscriptResult("", status="missing", error="yt_dlp_not_installed")
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    with tempfile.TemporaryDirectory(prefix="promptless-youtube-") as temp_dir:
+        output_template = str(Path(temp_dir) / "%(id)s.%(ext)s")
+        command = [
+            *ytdlp_command,
+            "--skip-download",
+            "--write-subs",
+            "--write-auto-subs",
+            "--sub-langs",
+            "en.*",
+            "--sub-format",
+            "vtt",
+            "--output",
+            output_template,
+            url,
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=45, check=False)
+        except (subprocess.TimeoutExpired, OSError):
+            return TranscriptResult("", status="failed", error="yt_dlp_caption_timeout")
+        if result.returncode != 0:
+            return TranscriptResult("", status="missing", error="yt_dlp_captions_unavailable")
+
+        caption_files = sorted(Path(temp_dir).glob("*.vtt"))
+        if not caption_files:
+            return TranscriptResult("", status="missing", error="yt_dlp_captions_unavailable")
+        transcript = parse_vtt(caption_files[0].read_text(encoding="utf-8", errors="replace"))
+        return TranscriptResult(transcript, source="youtube_auto_caption", status="done") if transcript else TranscriptResult("", status="missing", error="empty_caption_file")
+
+
+def transcribe_audio_asr(video_id: str) -> TranscriptResult:
+    """Opt-in local ASR via faster-whisper after downloading audio with yt-dlp."""
+    if not youtube_asr_enabled():
+        return TranscriptResult("", status="skipped", error="asr_disabled")
+    ytdlp_command = ytdlp_base_command()
+    if not ytdlp_command:
+        return TranscriptResult("", status="failed", error="yt_dlp_not_installed")
+    os.environ.setdefault("HF_HOME", str(DATA_DIR / "huggingface"))
+
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        return TranscriptResult("", status="failed", error="faster_whisper_not_installed")
+
+    max_duration = int(os.getenv("PROMPTLESS_YOUTUBE_ASR_MAX_SECONDS", "1800"))
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    try:
+        probe = subprocess.run([*ytdlp_command, "--dump-json", "--skip-download", url], capture_output=True, text=True, timeout=30, check=False)
+    except (subprocess.TimeoutExpired, OSError):
+        probe = None
+    if probe and probe.returncode == 0:
+        try:
+            duration = int(float(json.loads(probe.stdout).get("duration") or 0))
+        except (ValueError, json.JSONDecodeError, TypeError):
+            duration = 0
+        if duration and duration > max_duration:
+            return TranscriptResult("", status="skipped", error="video_too_long")
+
+    with tempfile.TemporaryDirectory(prefix="promptless-youtube-asr-") as temp_dir:
+        audio_template = str(Path(temp_dir) / "%(id)s.%(ext)s")
+        try:
+            download = subprocess.run(
+                [*ytdlp_command, "-f", "bestaudio[ext=m4a]/bestaudio", "--output", audio_template, url],
+                capture_output=True,
+                text=True,
+                timeout=180,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            return TranscriptResult("", status="failed", error="audio_download_timeout")
+        if download.returncode != 0:
+            return TranscriptResult("", status="failed", error="audio_download_failed")
+        audio_files = [path for path in Path(temp_dir).iterdir() if path.is_file()]
+        if not audio_files:
+            return TranscriptResult("", status="failed", error="audio_file_missing")
+
+        model_name = os.getenv("PROMPTLESS_YOUTUBE_ASR_MODEL", "base")
+        model = WhisperModel(model_name, device="cpu", compute_type=os.getenv("PROMPTLESS_YOUTUBE_ASR_COMPUTE", "int8"))
+        segments, _info = model.transcribe(str(audio_files[0]))
+        transcript = "\n".join(segment.text.strip() for segment in segments if segment.text.strip())
+        return TranscriptResult(transcript, source="asr_faster_whisper", status="done") if transcript else TranscriptResult("", status="failed", error="empty_asr_transcript")
+
+
+def youtube_asr_enabled() -> bool:
+    mode = os.getenv("PROMPTLESS_YOUTUBE_ASR", "").strip().lower()
+    enabled = os.getenv("PROMPTLESS_YOUTUBE_ASR_ENABLED", "").strip().lower()
+    if mode in {"faster-whisper", "faster_whisper"}:
+        return True
+    if enabled in {"1", "true", "yes", "on"}:
+        return True
+    return False
+
+
+def ytdlp_base_command() -> list[str]:
+    executable = shutil.which("yt-dlp")
+    if executable:
+        return [executable]
+    try:
+        import yt_dlp  # noqa: F401
+    except ImportError:
+        return []
+    return [sys.executable, "-m", "yt_dlp"]
+
+
+def parse_vtt(content: str) -> str:
+    lines = []
+    seen = set()
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or line == "WEBVTT" or "-->" in line or line.isdigit() or line.startswith(("Kind:", "Language:", "NOTE")):
+            continue
+        line = re.sub(r"<[^>]+>", "", line)
+        line = re.sub(r"\s+", " ", line).strip()
+        if line and line not in seen:
+            seen.add(line)
+            lines.append(line)
+    return "\n".join(lines)
 
 
 def classify_youtube_content(transcript: str, metadata: dict[str, str]) -> Classification:

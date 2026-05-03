@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import AliasChoices, BaseModel, Field, HttpUrl, field_validator
 
 
 class Rect(BaseModel):
@@ -111,6 +111,7 @@ class YouTubeRequest(BaseModel):
     url: str = ""
     title: str = ""
     channel: str = ""
+    min_watch_time_ms: int = Field(default=0, validation_alias=AliasChoices("min_watch_time_ms", "minWatchTimeMs"))
 
     model_config = {"extra": "ignore"}
 

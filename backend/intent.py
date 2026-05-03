@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Iterable, Literal
 from urllib.parse import urlparse
 
@@ -56,18 +57,49 @@ INTENT_LABELS: dict[IntentMode, str] = {
 }
 
 
+@dataclass(frozen=True)
+class IntentRanking:
+    intent: str
+    confidence: float
+    actions: list[SuggestedAction]
+    context_summary: str
+    rerank_candidates: list[SuggestedAction]
+
+
 def fallback_rank(ctx: IntentRequest) -> tuple[str, float, list[SuggestedAction]]:
     """Compatibility wrapper for the deterministic universal ranker."""
     return rank_actions(ctx)
 
 
 def rank_actions(ctx: IntentRequest) -> tuple[str, float, list[SuggestedAction]]:
+    ranking = rank_actions_detailed(ctx)
+    return ranking.intent, ranking.confidence, ranking.actions
+
+
+def rank_actions_detailed(ctx: IntentRequest) -> IntentRanking:
     mode, confidence = infer_intent_mode(ctx)
     scores = score_universal_actions(ctx, mode)
-    actions = make_actions(scores, ctx)[:3]
+    candidates = make_actions(scores, ctx)[:5]
+    actions = candidates[:3]
+    context_summary = rerank_context_summary(ctx)
     if confidence < CONFIDENCE_THRESHOLD:
-        return INTENT_LABELS[mode], confidence, []
-    return INTENT_LABELS[mode], confidence, actions
+        return IntentRanking(INTENT_LABELS[mode], confidence, [], context_summary, [])
+    return IntentRanking(INTENT_LABELS[mode], confidence, actions, context_summary, candidates)
+
+
+def rerank_context_summary(ctx: IntentRequest) -> str:
+    compressed = compress_context(ctx)
+    snippets = "\n".join(str(snippet) for snippet in compressed.get("snippets", [])[:4])
+    controls = ", ".join(str(control.get("text") or control.get("href") or "") for control in compressed.get("controls", [])[:12])
+    return (
+        f"URL: {compressed.get('url', '')}\n"
+        f"Title: {compressed.get('title', '')}\n"
+        f"Selected: {compressed.get('selectedText', '')}\n"
+        f"Focused: {compressed.get('focusedElement', '')}\n"
+        f"Viewport: {compressed.get('viewportSummary', '')}\n"
+        f"Controls: {controls}\n"
+        f"Snippets:\n{snippets}"
+    )[:4000]
 
 
 def infer_intent_mode(ctx: IntentRequest) -> tuple[IntentMode, float]:

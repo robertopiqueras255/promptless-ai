@@ -3,6 +3,7 @@ const MAX_EVENTS = 50;
 const SIGNIFICANT_SCROLL_PX = 350;
 const IDLE_SEND_MS = 3000;
 const MIN_PILL_VISIBLE_MS = 12000;
+const MIN_YOUTUBE_WATCH_MS = 10000;
 const DEBUG = false;
 
 let recentEvents = [];
@@ -21,6 +22,10 @@ let lastSuggestionActions = [];
 let lastSuggestionContext = null;
 let lastSuggestionTraceId = null;
 let lastYouTubeWorkflowKey = "";
+let currentYouTubeVideoId = "";
+let currentYouTubeStartedAt = performance.now();
+let canceledYouTubeVideoId = "";
+let youtubeThresholdTimer = null;
 
 function debug(...args) {
   if (DEBUG) console.debug("[PromptlessAI]", ...args);
@@ -200,9 +205,45 @@ function detectYouTubeVideo() {
   };
 }
 
+function trackYouTubeWatch(videoId) {
+  if (currentYouTubeVideoId === videoId) return;
+  cancelQuickYouTubeExit();
+  if (youtubeThresholdTimer) {
+    clearTimeout(youtubeThresholdTimer);
+  }
+  currentYouTubeVideoId = videoId;
+  currentYouTubeStartedAt = performance.now();
+  canceledYouTubeVideoId = "";
+  youtubeThresholdTimer = setTimeout(() => {
+    youtubeThresholdTimer = null;
+    if (currentYouTubeVideoId === videoId && document.visibilityState === "visible") {
+      void sendContext("youtube_watch_threshold");
+    }
+  }, MIN_YOUTUBE_WATCH_MS + 100);
+}
+
+function currentYouTubeWatchMs() {
+  return Math.max(0, Math.round(performance.now() - currentYouTubeStartedAt));
+}
+
+function cancelQuickYouTubeExit() {
+  if (!currentYouTubeVideoId || canceledYouTubeVideoId === currentYouTubeVideoId) return;
+  if (currentYouTubeWatchMs() >= MIN_YOUTUBE_WATCH_MS) return;
+
+  const videoId = currentYouTubeVideoId;
+  canceledYouTubeVideoId = videoId;
+  const url = `${API_BASE}/youtube/cancel/${encodeURIComponent(videoId)}`;
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url);
+    return;
+  }
+  fetch(url, { method: "POST", keepalive: true }).catch(() => {});
+}
+
 async function maybeRenderYouTubeWorkflow(context, signature) {
   const youtubeContext = detectYouTubeVideo();
   if (!youtubeContext || activeExecution || resultVisible) return false;
+  trackYouTubeWatch(youtubeContext.videoId);
 
   const workflowKey = `${youtubeContext.videoId}:${signature}`;
   if (workflowKey === lastYouTubeWorkflowKey && document.getElementById("promptless-ai-root")) {
@@ -213,7 +254,10 @@ async function maybeRenderYouTubeWorkflow(context, signature) {
     const response = await fetch(`${API_BASE}/youtube/intervene`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(youtubeContext)
+      body: JSON.stringify({
+        ...youtubeContext,
+        min_watch_time_ms: currentYouTubeWatchMs()
+      })
     });
     if (!response.ok) {
       debug("youtube workflow non-ok", response.status, await response.text());
@@ -699,6 +743,16 @@ window.addEventListener(
 
 window.addEventListener("load", () => {
   void sendContext("load");
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    cancelQuickYouTubeExit();
+  }
+});
+
+window.addEventListener("pagehide", () => {
+  cancelQuickYouTubeExit();
 });
 
 setInterval(() => {

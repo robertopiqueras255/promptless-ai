@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import concurrent.futures
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .actions import is_allowed_action
+from .config import RerankConfig
 from .hermes_client import execute_text_action
-from .intent import rank_actions
+from .intent import rank_actions_detailed
+from .llm import rerank_actions_with_metadata
 from .memory import for_hermes, store_youtube
 from .privacy import PrivacyMode, SanitizedContext, route_context, sanitize_context
 from .schemas import ExecuteRequest, ExecuteResponse, FeedbackRequest, IntentRequest, IntentResponse, MemoryStoreRequest, YouTubeRequest
@@ -17,11 +22,13 @@ from .youtube import (
     classify_youtube_content,
     detect_actionable_subtype,
     extract_video_id,
-    fetch_transcript,
+    fetch_transcript_with_source,
     get_youtube_intervention,
 )
+from .youtube_jobs import YouTubeTranscriptJob, cancel_transcript_job, enqueue_transcript_job
 
 app = FastAPI(title="Promptless AI Intent Backend", version="0.1.0")
+rerank_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ollama-rerank")
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,7 +61,8 @@ def infer_intent(request: IntentRequest) -> IntentResponse:
 
     # Deterministic ranking runs locally. Future cloud rerankers must use
     # sanitized.context only and honor route.cloud_allowed.
-    intent, confidence, actions = rank_actions(request)
+    ranking = rank_actions_detailed(request)
+    intent, confidence, actions = ranking.intent, ranking.confidence, ranking.actions
 
     # Backend-side enforcement: low-risk, known IDs only, max 3.
     safe_actions = [action for action in actions if is_allowed_action(action.id) and action.risk == "low"][:3]
@@ -67,10 +75,56 @@ def infer_intent(request: IntentRequest) -> IntentResponse:
         confidence=round(confidence, 3),
         actions=safe_actions,
     )
-    log_intent(trace_id, sanitized.context, response.model_dump(), privacy=privacy_metadata(sanitized, route))
+    rerank_requested = bool(safe_actions) and os.getenv("PROMPTLESS_OLLAMA_RERANK", "1").lower() not in {"0", "false", "off"}
+    log_intent(
+        trace_id,
+        sanitized.context,
+        {
+            **response.model_dump(),
+            "rerank_requested": rerank_requested,
+            "rerank_used": False,
+            "rerank_model": None,
+        },
+        privacy=privacy_metadata(sanitized, route),
+    )
+    if rerank_requested:
+        rerank_executor.submit(rerank_if_needed, trace_id, ranking.context_summary, ranking.rerank_candidates)
     if safe_actions:
         log_feedback(trace_id, "shown", metadata={"actionIds": [action.id for action in safe_actions]})
     return response
+
+
+def rerank_if_needed(trace_id: str, context_summary: str, candidates) -> None:
+    model = os.getenv("PROMPTLESS_OLLAMA_RERANK_MODEL") or None
+    candidate_dicts = [
+        candidate.model_dump()
+        for candidate in candidates[: RerankConfig.MAX_CANDIDATES]
+        if is_allowed_action(candidate.id) and candidate.risk == "low"
+    ]
+    if not candidate_dicts:
+        return
+    result = rerank_actions_with_metadata(context_summary, candidate_dicts, model=model, timeout=RerankConfig.TIMEOUT)
+    reranked_ids = [candidate["id"] for candidate in result.actions]
+    original_ids = [candidate["id"] for candidate in candidate_dicts]
+    log_feedback(
+        trace_id,
+        "intent_rerank_completed",
+        metadata={
+            "rerank_used": result.used,
+            "rerank_model": result.model,
+            "rerank_error": result.error,
+            "rankedActionIds": reranked_ids,
+            "originalActionIds": original_ids,
+        },
+    )
+
+
+@app.get("/llm/status")
+def llm_status() -> dict:
+    """Return LLM availability and current configuration."""
+    from .llm import get_llm_status
+
+    return get_llm_status()
 
 
 @app.post("/youtube/intervene")
@@ -80,7 +134,8 @@ def youtube_intervene(request: YouTubeRequest) -> dict[str, object]:
     if not video_id:
         raise HTTPException(status_code=400, detail="Missing YouTube video id")
 
-    transcript = fetch_transcript(video_id)
+    transcript_result = fetch_transcript_with_source(video_id, allow_ytdlp=False, allow_asr=False)
+    transcript = transcript_result.text
     metadata = {
         "title": request.title,
         "channel": request.channel,
@@ -98,6 +153,8 @@ def youtube_intervene(request: YouTubeRequest) -> dict[str, object]:
         "intent": intervention.get("intent") if intervention else "",
         "contextPatch": build_context_patch(transcript, metadata, classification) if transcript else {},
         "transcriptPreview": transcript[:500],
+        "transcriptionStatus": transcript_result.status,
+        "transcriptSource": transcript_result.source,
     }
     log_intent(
         trace_id,
@@ -107,6 +164,8 @@ def youtube_intervene(request: YouTubeRequest) -> dict[str, object]:
             "classification": classification,
             "interventionShown": intervention is not None,
             "transcriptLength": len(transcript),
+            "transcriptionStatus": transcript_result.status,
+            "transcriptSource": transcript_result.source,
             "actionIds": [action.get("id") for action in actions if isinstance(action, dict)],
         },
         privacy={"sensitivity": "public", "route": "local", "cloudAllowed": False, "redactionCount": 0, "findingKinds": []},
@@ -114,21 +173,52 @@ def youtube_intervene(request: YouTubeRequest) -> dict[str, object]:
     if actions:
         log_feedback(trace_id, "shown", metadata={"actionIds": [action["id"] for action in actions]})
 
-    # Store in promptless memory for Hermes context
-    if transcript and classification != "UNKNOWN":
+    # Store a lightweight memory immediately; enrich it later if captions are absent.
+    if request.url:
         subtype = detect_actionable_subtype(transcript, metadata) if classification == "ACTIONABLE" else ""
+        transcript_preview = transcript[:2000] if transcript else ""
+        should_queue_transcription = not transcript and request.min_watch_time_ms >= 10000
+        transcription_status = transcript_result.status if transcript else "queued" if should_queue_transcription else "deferred"
+        classification_label = "Actionable" if classification == "ACTIONABLE" else "Leisure" if classification == "LEISURE" else "Unknown"
         memory_entry = store_youtube(
             url=request.url,
             title=request.title,
             channel=request.channel,
             classification=classification,
-            summary=f"{'Actionable' if classification == 'ACTIONABLE' else 'Leisure'} video. Subtype: {subtype}. "
-                    f"Transcript preview: {transcript[:300]}",
-            transcript_preview=transcript[:2000],
+            summary=f"{classification_label} video. Subtype: {subtype}. "
+                    f"Transcript preview: {transcript[:300] if transcript else 'No captions available'}",
+            transcript_preview=transcript_preview,
+            extracted_content=transcript[:24000] if transcript else None,
+            video_id=video_id,
+            transcription_status=transcription_status,
+            transcript_source=transcript_result.source,
         )
         response["memoryId"] = memory_entry.get("id", "")
+        response["transcriptionStatus"] = transcription_status
+        if should_queue_transcription:
+            response["transcriptionStatus"] = enqueue_transcript_job(
+                YouTubeTranscriptJob(
+                    memory_id=memory_entry.get("id", ""),
+                    video_id=video_id,
+                    title=request.title,
+                    channel=request.channel,
+                    url=request.url,
+                    start_after_seconds=0.0,
+                )
+            )
 
     return response
+
+
+@app.post("/youtube/cancel/{video_id}")
+def youtube_cancel(video_id: str) -> dict[str, object]:
+    canceled = cancel_transcript_job(video_id)
+    log_feedback(
+        None,
+        "youtube_transcription_canceled",
+        metadata={"videoId": video_id, "canceled": canceled},
+    )
+    return {"status": "ok", "video_id": video_id, "canceled": canceled}
 
 
 @app.post("/execute", response_model=ExecuteResponse)

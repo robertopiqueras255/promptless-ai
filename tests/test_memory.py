@@ -8,6 +8,7 @@ from backend.memory import (
     store,
     store_youtube,
     store_web_extraction,
+    update_youtube_memory,
 )
 
 
@@ -174,6 +175,51 @@ def test_store_youtube_leisure(memory_path):
         user_id="yt_user",
     )
     assert entry["type"] == "youtube_leisure"
+
+
+def test_store_youtube_unknown_is_not_leisure(memory_path):
+    entry = store_youtube(
+        url="https://youtube.com/watch?v=unknown789",
+        title="No captions video",
+        channel="Unknown Channel",
+        classification="UNKNOWN",
+        summary="Unknown video. Transcript preview: No captions available",
+        video_id="unknown789",
+        transcription_status="queued",
+    )
+
+    assert entry["type"] == "youtube_unknown"
+    assert entry["metadata"]["classification"] == "UNKNOWN"
+    assert entry["metadata"]["transcription_status"] == "queued"
+
+
+def test_update_youtube_memory_enriches_pending_entry(memory_path):
+    entry = store_youtube(
+        url="https://youtube.com/watch?v=enrich123",
+        title="Pending video",
+        channel="DevTube",
+        classification="UNKNOWN",
+        summary="Pending transcript",
+        video_id="enrich123",
+        transcription_status="queued",
+    )
+
+    update_youtube_memory(
+        entry["id"],
+        classification="ACTIONABLE",
+        summary="Actionable video. Subtype: coding. Transcript preview: Run npm install.",
+        transcript_preview="Run npm install.",
+        extracted_content="Run npm install.",
+        tags=["coding"],
+        transcript_source="asr_faster_whisper",
+    )
+
+    results = retrieve("npm", user_id="default")
+    assert len(results) == 1
+    assert results[0]["type"] == "youtube_actionable"
+    assert results[0]["metadata"]["video_id"] == "enrich123"
+    assert results[0]["metadata"]["transcription_status"] == "done"
+    assert results[0]["metadata"]["transcript_source"] == "asr_faster_whisper"
 
 
 def test_store_web_extraction(memory_path):

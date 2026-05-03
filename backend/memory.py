@@ -13,6 +13,7 @@ from uuid import uuid4
 class EntryType(str, Enum):
     YOUTUBE_ACTIONABLE = "youtube_actionable"
     YOUTUBE_LEISURE = "youtube_leisure"
+    YOUTUBE_UNKNOWN = "youtube_unknown"
     WEB_PAGE = "web_page"
     GITHUB_ISSUE = "github_issue"
     OAUTH_SETUP = "oauth_setup"
@@ -47,11 +48,18 @@ def _update(existing_id: str, updates: dict) -> None:
                 continue
             obj = json.loads(line)
             if obj.get("id") == existing_id:
+                if isinstance(updates.get("metadata"), dict) and isinstance(obj.get("metadata"), dict):
+                    updates = {**updates, "metadata": {**obj["metadata"], **updates["metadata"]}}
                 obj.update(updates)
                 obj["last_accessed"] = _now_iso()
             lines.append(json.dumps(obj, ensure_ascii=False, default=str))
     with MEMORY_PATH.open("w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
+
+
+def update_entry(existing_id: str, updates: dict) -> None:
+    """Update a stored memory entry by ID."""
+    _update(existing_id, updates)
 
 
 def store(
@@ -77,6 +85,7 @@ def store(
     if url:
         existing = _find_by_url(url, user_id)
         if existing:
+            existing["type"] = entry_type
             existing["visit_count"] = existing.get("visit_count", 1) + 1
             existing["last_accessed"] = created
             if summary and len(summary) > len(existing.get("summary", "")):
@@ -88,6 +97,8 @@ def store(
                 existing["extracted_content"] = extracted_content
             if tags:
                 existing["tags"] = list(set(existing.get("tags", []) + tags))
+            if metadata:
+                existing["metadata"] = {**existing.get("metadata", {}), **metadata}
             _update(existing["id"], existing)
             return existing
 
@@ -217,16 +228,24 @@ def store_youtube(
     url: str,
     title: str,
     channel: str,
-    classification: str,  # "ACTIONABLE" or "LEISURE"
+    classification: str,  # "ACTIONABLE", "LEISURE", or "UNKNOWN"
     summary: str,
     transcript_preview: Optional[str] = None,
     extracted_content: Optional[str] = None,
     action_taken: Optional[str] = None,
     tags: Optional[list[str]] = None,
     user_id: str = "default",
+    video_id: str = "",
+    transcription_status: str = "not_needed",
+    transcript_source: str = "",
 ) -> dict:
     """Convenience wrapper for storing a YouTube watch memory."""
-    entry_type = EntryType.YOUTUBE_ACTIONABLE.value if classification == "ACTIONABLE" else EntryType.YOUTUBE_LEISURE.value
+    if classification == "ACTIONABLE":
+        entry_type = EntryType.YOUTUBE_ACTIONABLE.value
+    elif classification == "LEISURE":
+        entry_type = EntryType.YOUTUBE_LEISURE.value
+    else:
+        entry_type = EntryType.YOUTUBE_UNKNOWN.value
     full_title = f"{title} | {channel}"
     all_tags = [classification.lower(), "youtube"] + (tags or [])
 
@@ -244,8 +263,48 @@ def store_youtube(
             "channel": channel,
             "classification": classification,
             "transcript_preview": (transcript_preview or "")[:2000],
+            "video_id": video_id,
+            "transcription_status": transcription_status,
+            "transcript_source": transcript_source,
         },
     )
+
+
+def update_youtube_memory(
+    memory_id: str,
+    classification: str,
+    summary: str,
+    transcript_preview: str = "",
+    extracted_content: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    transcription_status: str = "done",
+    transcript_source: str = "",
+    error: str = "",
+) -> None:
+    """Enrich a YouTube memory after transcript work completes."""
+    if classification == "ACTIONABLE":
+        entry_type = EntryType.YOUTUBE_ACTIONABLE.value
+    elif classification == "LEISURE":
+        entry_type = EntryType.YOUTUBE_LEISURE.value
+    else:
+        entry_type = EntryType.YOUTUBE_UNKNOWN.value
+
+    updates = {
+        "type": entry_type,
+        "summary": summary,
+        "metadata": {
+            "classification": classification,
+            "transcript_preview": transcript_preview[:2000],
+            "transcription_status": transcription_status,
+            "transcript_source": transcript_source,
+            "error": error,
+        },
+    }
+    if extracted_content:
+        updates["extracted_content"] = extracted_content
+    if tags:
+        updates["tags"] = list(set(tags + ["youtube", classification.lower()]))
+    update_entry(memory_id, updates)
 
 
 def store_web_extraction(
