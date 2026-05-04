@@ -1,0 +1,18 @@
+{
+  "url": "https://platform.openai.com/docs/api-reference/responses/create",
+  "title": "Create a model response | OpenAI API Reference",
+  "selectedText": "",
+  "visibleText": "Create a model response\nPOST /v1/responses\nCreates a model response. Provide a model and input. You can include instructions, tools, metadata, max output tokens, and previous response ID. Responses return output items, status, usage, and errors when requests are invalid. Authentication requires an API key sent with the request.",
+  "elements": [
+    {"id": 1, "tag": "A", "text": "Responses"},
+    {"id": 2, "tag": "A", "text": "Create response"},
+    {"id": 3, "tag": "BUTTON", "text": "Copy code"}
+  ],
+  "recentEvents": [
+    {"type": "hover", "text": "Copy code", "tag": "BUTTON", "ts": 1}
+  ],
+  "expected": {
+    "intentIncludes": "understand",
+    "firstActionId": "explain_this"
+  }
+}

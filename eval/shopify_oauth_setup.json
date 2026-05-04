@@ -1,0 +1,21 @@
+{
+  "url": "https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/authorization-code-grant",
+  "title": "OAuth authorization code grant | Shopify app docs",
+  "selectedText": "",
+  "focusedElement": "INPUT Redirect URI redirect_uri field input",
+  "visibleText": "OAuth authorization code grant\nTo request authorization, configure your app client ID, redirect URI, requested scopes, and state parameter. The redirect URI must match the allowed callback URL in the app configuration. After the merchant approves the app, Shopify redirects back with a code. Exchange the code for an access token.",
+  "elements": [
+    {"id": 1, "tag": "INPUT", "text": "Client ID client_id field input"},
+    {"id": 2, "tag": "INPUT", "text": "Redirect URI redirect_uri field input"},
+    {"id": 3, "tag": "INPUT", "text": "Scopes scope field input"},
+    {"id": 4, "tag": "BUTTON", "text": "Save configuration"}
+  ],
+  "recentEvents": [
+    {"type": "focus", "placeholder": "Redirect URI", "tag": "INPUT", "ts": 1}
+  ],
+  "expected": {
+    "intentIncludes": "next action",
+    "firstActionId": "what_should_i_do_next",
+    "firstActionLabel": "Next step"
+  }
+}
