@@ -119,14 +119,19 @@ Tasks:
 
 ## Day 5 - Demo Testing
 
-Status: Not started
+Status: Automated fixture pass added, manual Chrome validation pending
 
 Tasks:
-- [ ] Test on Stripe docs.
-- [ ] Test on OpenAI docs.
-- [ ] Test on Shopify admin/docs.
-- [ ] Test on pricing pages.
-- [ ] Test on GitHub issues.
+- [x] Add deterministic eval coverage for Stripe-style docs.
+- [x] Add deterministic eval coverage for OpenAI docs.
+- [x] Add deterministic eval coverage for Shopify/OAuth setup.
+- [x] Add deterministic eval coverage for pricing pages.
+- [x] Add deterministic eval coverage for GitHub issues.
+- [ ] Manual Chrome test on Stripe docs.
+- [ ] Manual Chrome test on OpenAI docs.
+- [ ] Manual Chrome test on Shopify admin/docs.
+- [ ] Manual Chrome test on pricing pages.
+- [ ] Manual Chrome test on GitHub issues.
 - [ ] Tune static fallbacks and LLM prompt.
 
 ## Privacy Gateway / Unicorn Plan Implementation
